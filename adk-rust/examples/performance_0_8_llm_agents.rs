@@ -124,20 +124,16 @@ async fn main() -> Result<()> {
         },
     ];
 
-    for case in cases.drain(..) {
-        let report = run_case(case, model.clone()).await?;
-        println!("{} completed (response bytes: {})", report.finding, report.response_bytes);
+    let total_cases = cases.len();
+    for (case_index, case) in cases.drain(..).enumerate() {
+        run_case(case, model.clone()).await?;
+        println!("case {}/{} completed", case_index + 1, total_cases);
     }
 
     Ok(())
 }
 
-struct CaseReport {
-    finding: &'static str,
-    response_bytes: usize,
-}
-
-async fn run_case(case: UseCase, model: Arc<dyn Llm>) -> Result<CaseReport> {
+async fn run_case(case: UseCase, model: Arc<dyn Llm>) -> Result<()> {
     let agent = Arc::new(
         LlmAgentBuilder::new(case.agent_name)
             .description(format!("Validation agent for {}", case.finding))
@@ -198,7 +194,7 @@ async fn run_case(case: UseCase, model: Arc<dyn Llm>) -> Result<CaseReport> {
         )));
     }
 
-    Ok(CaseReport { finding: case.finding, response_bytes: text.len() })
+    Ok(())
 }
 
 fn real_model_from_env() -> Result<Arc<dyn Llm>> {
