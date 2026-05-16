@@ -560,6 +560,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "adk-retry-reflect"
+version = "0.8.1"
+dependencies = [
+ "adk-core",
+ "adk-plugin",
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "adk-runner"
 version = "0.8.2"
 dependencies = [
