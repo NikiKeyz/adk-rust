@@ -1,0 +1,50 @@
+# Full YAML Agent Configuration Example
+#
+# Demonstrates all features: env var interpolation, plugins, session, memory,
+# tools, sub-agents, and model configuration.
+
+name: research-assistant
+description: "Multi-agent research team powered by ${LLM_PROVIDER:-gemini}"
+
+model:
+  provider: "${LLM_PROVIDER:-gemini}"
+  model_id: "${LLM_MODEL:-gemini-2.5-flash}"
+  temperature: 0.7
+  max_tokens: 8192
+
+instructions: |
+  You are a research assistant that coordinates a team of
+  specialized sub-agents to answer complex questions.
+  Use the available tools to search for information and
+  verify facts before responding.
+
+tools:
+  - name: web_search
+  - mcp:
+      endpoint: "npx @modelcontextprotocol/server-filesystem"
+      args: ["${WORKSPACE_DIR:-/data}"]
+
+sub_agents:
+  - ref: summarizer
+  - ref: fact_checker
+
+config:
+  top_p: 0.95
+  stop_sequences: ["END", "DONE"]
+
+plugins:
+  - name: telemetry
+    config:
+      endpoint: "${OTEL_ENDPOINT:-http://localhost:4317}"
+      service_name: research-assistant
+  - name: rate_limit
+    config:
+      max_requests_per_minute: 60
+
+session:
+  backend: "${SESSION_BACKEND:-inmemory}"
+  connection_string: "${DATABASE_URL:-sqlite://sessions.db}"
+  pool_size: 5
+
+memory:
+  backend: "${MEMORY_BACKEND:-inmemory}"

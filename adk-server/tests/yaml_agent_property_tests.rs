@@ -36,7 +36,7 @@ fn arb_json_value() -> impl Strategy<Value = JsonValue> {
         any::<bool>().prop_map(JsonValue::Bool),
         // Use integers to avoid floating-point precision issues in YAML round-trip
         (-1000i64..1000).prop_map(|n| JsonValue::Number(serde_json::Number::from(n))),
-        "[a-zA-Z0-9 _-]{0,20}".prop_map(|s| JsonValue::String(s)),
+        "[a-zA-Z0-9 _-]{0,20}".prop_map(JsonValue::String),
     ]
 }
 
@@ -46,10 +46,21 @@ fn arb_config_map() -> impl Strategy<Value = HashMap<String, JsonValue>> {
 }
 
 /// Generate a metadata map with keys that do NOT collide with known schema fields.
-/// Known fields: name, description, model, instructions, tools, sub_agents, config
+/// Known fields: name, description, model, instructions, tools, sub_agents, config,
+/// plugins, session, memory
 fn arb_metadata_map() -> impl Strategy<Value = HashMap<String, JsonValue>> {
-    let known_fields =
-        ["name", "description", "model", "instructions", "tools", "sub_agents", "config"];
+    let known_fields = [
+        "name",
+        "description",
+        "model",
+        "instructions",
+        "tools",
+        "sub_agents",
+        "config",
+        "plugins",
+        "session",
+        "memory",
+    ];
     prop::collection::hash_map("meta_[a-z]{1,10}".prop_map(|s| s), arb_json_value(), 0..3)
         .prop_filter("metadata keys must not collide with known fields", move |m| {
             m.keys().all(|k| !known_fields.contains(&k.as_str()))
@@ -110,6 +121,9 @@ fn arb_yaml_agent_definition() -> impl Strategy<Value = YamlAgentDefinition> {
                     sub_agents,
                     config,
                     metadata,
+                    plugins: vec![],
+                    session: None,
+                    memory: None,
                 }
             },
         )

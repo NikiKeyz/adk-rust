@@ -45,12 +45,14 @@ a2a-protocol-types = { version = "0.5", optional = true }
 serde_yaml = { version = "0.9", optional = true }
 # Optional: filesystem watcher for hot reload
 notify = { version = "8", optional = true }
+# Optional: environment variable interpolation in YAML configs
+regex = { workspace = true, optional = true }
 
 [features]
 default = []
 a2a-v1 = ["dep:a2a-protocol-types"]
 # Enable YAML agent definition loading and hot reload
-yaml-agent = ["dep:serde_yaml", "dep:notify"]
+yaml-agent = ["dep:serde_yaml", "dep:notify", "dep:regex"]
 # Enable Agent Registry REST API
 agent-registry = []
 

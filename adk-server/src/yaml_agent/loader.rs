@@ -236,8 +236,21 @@ impl AgentConfigLoader {
         content: &str,
         path: &Path,
     ) -> adk_core::Result<YamlAgentDefinition> {
-        let definition: YamlAgentDefinition = serde_yaml::from_str(content).map_err(|e| {
+        let mut definition: YamlAgentDefinition = serde_yaml::from_str(content).map_err(|e| {
             adk_core::AdkError::config(format!("invalid YAML in '{}': {e}", path.display()))
+        })?;
+
+        // Interpolate environment variables before validation
+        super::interpolator::EnvInterpolator::interpolate(&mut definition).map_err(|errors| {
+            let messages: Vec<String> = errors
+                .iter()
+                .map(|e| format!("${{{}}} in field '{}'", e.variable_name, e.field_path))
+                .collect();
+            adk_core::AdkError::config(format!(
+                "unresolved environment variables in '{}': {}",
+                path.display(),
+                messages.join(", ")
+            ))
         })?;
 
         self.validate_definition(&definition, path)?;

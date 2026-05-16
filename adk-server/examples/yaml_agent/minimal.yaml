@@ -1,0 +1,8 @@
+# Minimal YAML Agent Configuration
+#
+# Only the required fields: name and model.
+
+name: simple_assistant
+model:
+  provider: gemini
+  model_id: gemini-2.5-flash

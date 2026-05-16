@@ -62,6 +62,18 @@ pub struct YamlAgentDefinition {
     #[serde(default)]
     pub config: HashMap<String, serde_json::Value>,
 
+    /// Plugin references for attaching lifecycle hooks to the agent.
+    #[serde(default)]
+    pub plugins: Vec<PluginReference>,
+
+    /// Session backend configuration for state persistence.
+    #[serde(default)]
+    pub session: Option<SessionConfig>,
+
+    /// Memory backend configuration for semantic memory.
+    #[serde(default)]
+    pub memory: Option<MemoryConfig>,
+
     /// Forward-compatibility: unknown fields preserved here.
     #[serde(flatten)]
     pub metadata: HashMap<String, serde_json::Value>,
@@ -127,4 +139,69 @@ pub struct SubAgentReference {
     /// Name of the referenced sub-agent.
     #[serde(rename = "ref")]
     pub reference: String,
+}
+
+/// Plugin reference in a YAML agent definition.
+///
+/// Specifies a plugin by name with optional plugin-specific configuration.
+///
+/// # Example
+///
+/// ```yaml
+/// plugins:
+///   - name: telemetry
+///     config:
+///       endpoint: "http://localhost:4317"
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PluginReference {
+    /// Plugin name to resolve from the plugin registry.
+    pub name: String,
+
+    /// Optional plugin-specific configuration.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config: Option<serde_json::Value>,
+}
+
+/// Session backend configuration.
+///
+/// Specifies which session persistence backend to use and its options.
+///
+/// # Example
+///
+/// ```yaml
+/// session:
+///   backend: postgres
+///   connection_string: "${DATABASE_URL}"
+///   pool_size: 5
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SessionConfig {
+    /// Backend type: "inmemory", "sqlite", "postgres", or "redis".
+    pub backend: String,
+
+    /// Backend-specific configuration options (connection strings, TTL, pool size).
+    #[serde(flatten)]
+    pub options: HashMap<String, serde_json::Value>,
+}
+
+/// Memory backend configuration.
+///
+/// Specifies which memory/RAG backend to use and its options.
+///
+/// # Example
+///
+/// ```yaml
+/// memory:
+///   backend: postgres
+///   connection_string: "${DATABASE_URL}"
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MemoryConfig {
+    /// Backend type: "inmemory" or "postgres".
+    pub backend: String,
+
+    /// Backend-specific configuration options.
+    #[serde(flatten)]
+    pub options: HashMap<String, serde_json::Value>,
 }
