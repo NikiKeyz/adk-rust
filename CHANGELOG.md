@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.3] - 2026-05-18
+
+### Fixed
+
+- **Gemini schema `items` tuple validation error**: Fixed 400 errors from Gemini API when MCP tools declared `items` using JSON array syntax (tuple validation). Gemini's Schema proto only supports `items` as a single schema object for array element types. Tuple validation syntax (`items: [{...}, {...}]`) is now stripped.
+
+- **Comprehensive unsupported keyword stripping**: Expanded the Gemini schema adapter's unsupported keywords list from 7 to 32 entries based on the official Gemini API documentation. The Schema proto only supports `type`, `description`, `enum`, `items`, `properties`, `required`, `nullable`, and `format` (limited values). All other JSON Schema keywords are now stripped, including:
+  - Numeric constraints: `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`
+  - String constraints: `minLength`, `maxLength`, `pattern`
+  - Array constraints: `minItems`, `maxItems`, `uniqueItems`, `contains`, `prefixItems`
+  - Object constraints: `minProperties`, `maxProperties`, `dependentRequired`, `dependentSchemas`
+  - Annotations: `title`, `default`, `deprecated`, `examples`, `readOnly`, `writeOnly`
+  - Content: `contentMediaType`, `contentEncoding`
+  - Meta: `$id`
+
 ## [0.8.2] - 2026-05-16
 
 ### Added
