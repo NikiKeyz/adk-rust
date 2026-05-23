@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.5] - 2026-05-19
+
+### Breaking
+
+- **`DatabaseSessionService` type alias removed** (deprecated since 0.4.0). Use `SqliteSessionService` directly instead. The alias was a backward-compatibility shim that has been deprecated for 4 minor releases.
+
+- **`RustCodeTool` struct removed** (deprecated since 0.5.0). Use `adk_code::CodeTool` instead. The struct and its module have been fully removed from `adk-tool`.
+
+- **`RunnerConfig` and `RunConfig` are now `#[non_exhaustive]`**. Struct literal construction is no longer possible from downstream crates. Use the builder pattern instead:
+  ```rust
+  // RunnerConfig — use the typestate builder
+  let runner = Runner::builder()
+      .agent(agent)
+      .session_service(session_service)
+      .build();
+
+  // RunConfig — use the builder or Default
+  let run_config = RunConfig::builder()
+      .input_text("Hello")
+      .build();
+  ```
+
+### Changed
+
+- **Beta-to-Stable promotions**: The following crates have been promoted from Beta to Stable tier, committing to semantic versioning guarantees:
+  - `adk-server` — HTTP server (Axum) and A2A protocol
+  - `adk-graph` — Graph-based workflow orchestration with checkpoints
+  - `adk-memory` — Semantic memory and RAG search
+  - `adk-anthropic` — Dedicated Anthropic client and tool search
+
+### Added
+
+- **`#![deny(missing_docs)]` enforced on all 7 original Stable-tier crates**: `adk-core`, `adk-agent`, `adk-model`, `adk-gemini`, `adk-tool`, `adk-runner`, `adk-session`. All public items now have rustdoc documentation.
+
+- **Property tests for 4 crates**: Added proptest-based property tests (100+ iterations each) for `adk-agent` (event stream well-formedness), `adk-runner` (config builder round-trip), `adk-gemini` (serialization round-trip, thinking config validation), and `adk-tool` (schema generation, MCP round-trip).
+
+- **CI documentation lint job**: New `docs` job in CI that runs `RUSTDOCFLAGS="-D missing_docs" cargo doc --no-deps` for all 12 Stable-tier crates, failing on any undocumented public items.
+
 ## [0.8.4] - 2026-05-18
 
 ### Fixed
@@ -743,9 +781,6 @@ Five adoption fixes reported by a real-world integrator (zavora-cli):
 - **adk-gemini**: Removed `println!` debug statements from tests.
 - **README versions**: Bumped 0.3→0.4 in adk-telemetry, adk-memory, adk-artifact, adk-plugin, adk-guardrail, adk-gemini.
 
-### Removed
-- **adk-doc-audit**: Removed from workspace (docs.rs provides this functionality). Backed up to standalone directory.
-
 #### adk-mistralrs
 - **Minimal tokio features**: Changed from `tokio = { features = ["full"] }` to `tokio = { features = ["rt", "sync", "macros"] }` — the minimal set actually used by the crate.
 
@@ -1147,9 +1182,6 @@ Thanks to the following people for their contributions to this release:
 - **adk-studio**: CORS restricted to localhost origins only (was allowing all origins)
 - **adk-ui**: `NumberInput` validation no longer false-fails when only `min` is set (`Some(min) > None` was always true)
 - **adk-graph**: Replaced `eprintln!("DEBUG: ...")` with `tracing::debug!()` in `AgentNode::execute_stream` and `CompiledGraph::stream` (stderr leakage in library code)
-- **adk-doc-audit**: Line numbers now use `syn::Span::start().line` instead of hardcoded `0`
-- **adk-doc-audit**: `suggest_similar_crate_names` and `suggest_similar_api_names` made static (removed dead `_static` variants)
-- **adk-doc-audit**: Deleted stale `test.md` artifact
 - **adk-ui**: Validation refactored from monolithic match into per-type `Validate` trait impls (Text, Button, TextInput, NumberInput, Select, Table, Chart, Card, Modal, Stack, Grid, Tabs)
 
 ### Changed
@@ -1158,7 +1190,6 @@ Thanks to the following people for their contributions to this release:
   - `gpt-4o` / `gpt-4o-mini` → `gpt-5-mini`
   - `claude-sonnet-4-20250514` → `claude-sonnet-4-5-20250929`
   - `gemini-2.0-flash-live-preview-04-09` → `gemini-live-2.5-flash-native-audio`
-- `adk-doc-audit` now depends on `proc-macro2` with `span-locations` feature for accurate line numbers
 - `CONTRIBUTING.md` rewritten with full 25+ crate inventory, build commands, architecture notes
 - `.kiro/` and `.vite/` excluded from git tracking
 - `.gitignore` cleaned up (removed absolute paths, duplicate entries)
