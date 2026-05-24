@@ -25,7 +25,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use cargo_adk::codegen::generate_project;
-use cargo_adk::composition::{resolve_composition, DryRunFile, DryRunOutput};
+use cargo_adk::composition::{DryRunFile, DryRunOutput, resolve_composition};
 use cargo_adk::registry::TemplateRegistry;
 
 const ADK_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -1121,7 +1121,15 @@ fn create_project(
     dry_run: bool,
 ) -> Result<(), String> {
     if should_use_composable(template, addons) {
-        return create_project_composable(name, template, provider, output_dir, json_output, addons, dry_run);
+        return create_project_composable(
+            name,
+            template,
+            provider,
+            output_dir,
+            json_output,
+            addons,
+            dry_run,
+        );
     }
 
     // Legacy path: use existing generate_* functions for backward compatibility
@@ -1209,19 +1217,21 @@ fn create_project_composable(
     let registry = TemplateRegistry::builtin();
 
     // Determine the base template and effective addons
-    let (base_template, effective_addons) = if let Some(pattern) = registry.resolve_pattern(template) {
-        // Enterprise pattern: resolve to base_template + pattern addons + user addons
-        let mut all_addons: Vec<String> = pattern.included_addons.iter().map(|a| a.to_string()).collect();
-        for addon in addons {
-            if !all_addons.contains(addon) {
-                all_addons.push(addon.clone());
+    let (base_template, effective_addons) =
+        if let Some(pattern) = registry.resolve_pattern(template) {
+            // Enterprise pattern: resolve to base_template + pattern addons + user addons
+            let mut all_addons: Vec<String> =
+                pattern.included_addons.iter().map(|a| a.to_string()).collect();
+            for addon in addons {
+                if !all_addons.contains(addon) {
+                    all_addons.push(addon.clone());
+                }
             }
-        }
-        (pattern.base_template.to_string(), all_addons)
-    } else {
-        // Direct template (new composable or legacy with addons)
-        (template.to_string(), addons.to_vec())
-    };
+            (pattern.base_template.to_string(), all_addons)
+        } else {
+            // Direct template (new composable or legacy with addons)
+            (template.to_string(), addons.to_vec())
+        };
 
     // Convert addons to &str slice for resolve_composition
     let addon_refs: Vec<&str> = effective_addons.iter().map(|s| s.as_str()).collect();
@@ -1236,13 +1246,18 @@ fn create_project_composable(
     // Handle dry-run mode
     if dry_run {
         let dry_output = DryRunOutput {
-            files: files.iter().map(|f| DryRunFile {
-                path: f.path.clone(),
-                size_bytes: f.content.len(),
-            }).collect(),
+            files: files
+                .iter()
+                .map(|f| DryRunFile { path: f.path.clone(), size_bytes: f.content.len() })
+                .collect(),
             feature_set: manifest.feature_set.iter().cloned().collect(),
             dependencies: std::iter::once(format!("adk-rust = {ADK_VERSION}"))
-                .chain(manifest.dependencies.iter().map(|d| format!("{} = {}", d.crate_name, d.version)))
+                .chain(
+                    manifest
+                        .dependencies
+                        .iter()
+                        .map(|d| format!("{} = {}", d.crate_name, d.version)),
+                )
                 .collect(),
             env_vars: manifest.env_vars.iter().map(|(k, _)| k.clone()).collect(),
         };
@@ -1789,7 +1804,8 @@ mod tests {
         let _ = fs::remove_dir_all(&tmp);
         fs::create_dir_all(&tmp).unwrap();
 
-        let result = create_project("test-agent", "basic", "gemini", Some(&tmp), false, false, &[], false);
+        let result =
+            create_project("test-agent", "basic", "gemini", Some(&tmp), false, false, &[], false);
         assert!(result.is_ok());
         assert!(tmp.join("test-agent/Cargo.toml").exists());
         assert!(tmp.join("test-agent/src/main.rs").exists());
@@ -1803,7 +1819,8 @@ mod tests {
         let _ = fs::remove_dir_all(&tmp);
         fs::create_dir_all(&tmp).unwrap();
 
-        let result = create_project("yaml-agent", "tools", "gemini", Some(&tmp), false, true, &[], false);
+        let result =
+            create_project("yaml-agent", "tools", "gemini", Some(&tmp), false, true, &[], false);
         assert!(result.is_ok());
         assert!(tmp.join("yaml-agent/agents/yaml-agent.yaml").exists());
 
@@ -1824,7 +1841,8 @@ mod tests {
         fs::create_dir_all(&tmp).unwrap();
 
         // json_output just changes what's printed, project is still created
-        let result = create_project("json-agent", "basic", "gemini", Some(&tmp), true, false, &[], false);
+        let result =
+            create_project("json-agent", "basic", "gemini", Some(&tmp), true, false, &[], false);
         assert!(result.is_ok());
         assert!(tmp.join("json-agent/Cargo.toml").exists());
 
