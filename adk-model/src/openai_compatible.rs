@@ -162,6 +162,57 @@ impl OpenAICompatibleConfig {
             .with_provider_name("gemini")
             .with_base_url("https://generativelanguage.googleapis.com/v1beta/openai")
     }
+
+    /// MiniMax preset.
+    ///
+    /// Default model: `minimax-m2.7`
+    pub fn minimax(api_key: impl Into<String>, model: impl Into<String>) -> Self {
+        Self::new(api_key, model)
+            .with_provider_name("minimax")
+            .with_base_url("https://api.minimax.chat/v1")
+    }
+
+    /// ByteDance Doubao (Volcano Engine Ark) preset.
+    ///
+    /// Default model: `doubao-1-5-pro-256k`
+    pub fn bytedance(api_key: impl Into<String>, model: impl Into<String>) -> Self {
+        Self::new(api_key, model)
+            .with_provider_name("bytedance")
+            .with_base_url("https://ark.cn-beijing.volces.com/api/v3")
+    }
+
+    /// Zhipu AI (GLM) preset.
+    ///
+    /// Default model: `glm-5.1`
+    pub fn zhipu(api_key: impl Into<String>, model: impl Into<String>) -> Self {
+        Self::new(api_key, model)
+            .with_provider_name("zhipu")
+            .with_base_url("https://open.bigmodel.cn/api/paas/v4")
+    }
+
+    /// Baidu ERNIE (Qianfan) preset via OpenAI-compatible endpoint.
+    ///
+    /// Default model: `ernie-5`
+    ///
+    /// Note: Uses the Qianfan OpenAI-compatible endpoint. For the native
+    /// Qianfan API with OAuth2 token exchange, use a dedicated client.
+    pub fn baidu(api_key: impl Into<String>, model: impl Into<String>) -> Self {
+        Self::new(api_key, model)
+            .with_provider_name("baidu")
+            .with_base_url("https://qianfan.baidubce.com/v2")
+    }
+
+    /// Cohere preset via OpenAI-compatible endpoint.
+    ///
+    /// Default model: `command-a-plus-05-2026`
+    ///
+    /// Note: For full Cohere features (citations, connectors, RAG), use
+    /// the native Cohere API. This preset provides basic chat completions.
+    pub fn cohere(api_key: impl Into<String>, model: impl Into<String>) -> Self {
+        Self::new(api_key, model)
+            .with_provider_name("cohere")
+            .with_base_url("https://api.cohere.com/compatibility/v1")
+    }
 }
 
 /// Shared OpenAI-compatible client implementation.

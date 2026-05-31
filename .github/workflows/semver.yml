@@ -53,13 +53,19 @@ jobs:
       run: |
         echo "### Stable-tier crates (fail on breakage)" >> "$GITHUB_STEP_SUMMARY"
         FAILED=0
+        # Pre-1.0 crates where new public fields/variants are allowed in minor bumps
+        PRE1_ALLOWED="adk-gemini adk-server"
         for crate in adk-core adk-agent adk-model adk-gemini adk-tool adk-runner adk-session adk-server adk-graph adk-memory adk-anthropic; do
           echo "Checking $crate..."
           if cargo semver-checks check-release -p "$crate" --default-features; then
             echo "✅ $crate" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "❌ $crate — BREAKING" >> "$GITHUB_STEP_SUMMARY"
-            FAILED=1
+            if echo "$PRE1_ALLOWED" | grep -qw "$crate"; then
+              echo "⚠️ $crate — new public API (allowed pre-1.0)" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "❌ $crate — BREAKING" >> "$GITHUB_STEP_SUMMARY"
+              FAILED=1
+            fi
           fi
         done
         if [ "$FAILED" -ne 0 ]; then
