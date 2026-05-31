@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **adk-model: Gemini OpenAI-compatible preset** — `OpenAICompatibleConfig::gemini(api_key, model)`
+  targets Gemini's OpenAI-compatibility endpoint
+  (`https://generativelanguage.googleapis.com/v1beta/openai`), letting callers on
+  the `openai` feature use a `GEMINI_API_KEY` and a Gemini model through the
+  OpenAI Chat Completions wire format (chat, streaming, function calling,
+  structured output, reasoning effort). Two examples added:
+  `gemini_openai_compat` (direct client) and `gemini_openai_compat_agent`
+  (the compat client driving a normal `LlmAgent`/`Runner`).
 - **adk-gemini: Interactions API (Beta)** — first-class support for Google's new
   Interactions API, the forward direction for the Gemini API. Gated behind the
   new `interactions` feature flag (no new dependencies; additive to the existing
