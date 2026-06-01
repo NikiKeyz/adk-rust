@@ -43,7 +43,7 @@ Demonstrates the ADK-Rust Enhanced Plugin System (Sprint 1) with three custom pl
 
 ## Prerequisites
 
-- Rust 1.85+
+- Rust 1.96+
 - `GOOGLE_API_KEY` environment variable set
 
 ## Setup

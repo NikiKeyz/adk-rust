@@ -14,7 +14,7 @@ reads channels, sends messages, adds reactions, and lists threads via the Slack 
 
 ## Prerequisites
 
-- Rust 1.85+
+- Rust 1.96+
 - `GOOGLE_API_KEY` for the Gemini LLM provider
 - (Optional) A Slack Bot Token for live mode
 

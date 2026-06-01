@@ -85,7 +85,7 @@ Routes added via `add_api_routes()` additionally receive the auth middleware lay
 
 ## Prerequisites
 
-- Rust 1.85+
+- Rust 1.96+
 - No LLM provider or API keys required
 
 ## Environment Variables

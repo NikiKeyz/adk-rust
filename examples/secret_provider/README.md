@@ -11,7 +11,7 @@ Demonstrates ADK-Rust's secret management — retrieving secrets from a provider
 
 ## Prerequisites
 
-- Rust 1.85+
+- Rust 1.96+
 - `GOOGLE_API_KEY` environment variable set
 
 ## Environment Variables

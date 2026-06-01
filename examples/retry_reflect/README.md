@@ -62,7 +62,7 @@ This gives the agent context to self-correct on the next turn.
 
 ## Prerequisites
 
-- Rust 1.85+
+- Rust 1.96+
 - `GOOGLE_API_KEY` environment variable set
 
 ## Setup
