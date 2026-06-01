@@ -29,10 +29,7 @@ async fn main() -> anyhow::Result<()> {
         // These env vars are passed to the child process via Command::env()
         .env("ADK_EXAMPLE_MODE", "true")
         .env("ADK_EXAMPLE_NAME", "env-cancel-demo")
-        .envs([
-            ("CUSTOM_VAR_1", "hello"),
-            ("CUSTOM_VAR_2", "world"),
-        ]);
+        .envs([("CUSTOM_VAR_1", "hello"), ("CUSTOM_VAR_2", "world")]);
 
     println!("Config created with {} env vars:", config.env.len());
     for (k, v) in &config.env {
@@ -59,7 +56,16 @@ async fn main() -> anyhow::Result<()> {
 
     // Start a prompt that would take a while
     let session_clone_prompt = "Write a detailed 500-word essay about the history of Rust programming language. Include dates, key contributors, and major milestones.";
-    println!("Sending long prompt: \"{}\"\n", &session_clone_prompt[..60]);
+    println!("Sending long prompt: \"{}...\"\n", {
+        let end = {
+            let mut e = 60.min(session_clone_prompt.len());
+            while e > 0 && !session_clone_prompt.is_char_boundary(e) {
+                e -= 1;
+            }
+            e
+        };
+        &session_clone_prompt[..end]
+    });
 
     // Race: prompt vs timeout
     let prompt_future = session.prompt(session_clone_prompt);

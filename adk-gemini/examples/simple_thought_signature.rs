@@ -72,9 +72,13 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         );
 
         if let Some(signature) = thought_signature {
+            let mut end = 50.min(signature.len());
+            while end > 0 && !signature.is_char_boundary(end) {
+                end -= 1;
+            }
             info!(
                 signature_length = signature.len(),
-                preview = &signature[..50.min(signature.len())],
+                preview = &signature[..end],
                 "thought signature present"
             );
         } else {

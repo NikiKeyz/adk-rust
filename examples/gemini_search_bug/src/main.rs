@@ -17,8 +17,7 @@ use adk_core::Agent;
 
 const APP_NAME: &str = "gemini-search-bug";
 const MODEL_NAME: &str = "gemini-3-pro-preview";
-const INSTRUCTIONS: &str =
-    "You are a research agent. Use Google Search for current information, then call record_tool_status.";
+const INSTRUCTIONS: &str = "You are a research agent. Use Google Search for current information, then call record_tool_status.";
 
 fn gemini_server_tool_kind(value: &serde_json::Value) -> String {
     if value.get("toolCall").is_some() {
@@ -38,16 +37,20 @@ fn server_tool_sig(val: &serde_json::Value) -> Option<String> {
     val.get("thoughtSignature")
         .and_then(|v| v.as_str())
         .or_else(|| {
-            val.get("toolCall")
-                .and_then(|tc| tc.get("_thought_signature"))
-                .and_then(|v| v.as_str())
+            val.get("toolCall").and_then(|tc| tc.get("_thought_signature")).and_then(|v| v.as_str())
         })
         .map(String::from)
 }
 
 fn sig_display(sig: &Option<String>) -> String {
     match sig {
-        Some(s) if s.len() > 50 => format!("{}…[{}B]", &s[..50], s.len()),
+        Some(s) if s.len() > 50 => {
+            let mut end = 50;
+            while end > 0 && !s.is_char_boundary(end) {
+                end -= 1;
+            }
+            format!("{}…[{}B]", &s[..end], s.len())
+        }
         Some(s) => s.clone(),
         None => "(none)".to_string(),
     }
@@ -153,11 +156,8 @@ async fn main() -> anyhow::Result<()> {
         })
         .await?;
 
-    let runner = Runner::builder()
-        .app_name(APP_NAME)
-        .agent(agent)
-        .session_service(sessions)
-        .build()?;
+    let runner =
+        Runner::builder().app_name(APP_NAME).agent(agent).session_service(sessions).build()?;
 
     // Run the agent
     let mut stream = runner

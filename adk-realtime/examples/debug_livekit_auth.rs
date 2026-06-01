@@ -35,8 +35,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let token = token_builder.to_jwt()?;
     println!("Generated Token length: {}", token.len());
-    println!("Token start: {}...", &token[..10]);
-    println!("Token end: ...{}", &token[token.len() - 10..]);
+    println!("Token start: {}...", {
+        let mut e = 10.min(token.len());
+        while e > 0 && !token.is_char_boundary(e) {
+            e -= 1;
+        }
+        &token[..e]
+    });
+    println!("Token end: ...{}", {
+        let start = token.len().saturating_sub(10);
+        let mut s = start;
+        while s < token.len() && !token.is_char_boundary(s) {
+            s += 1;
+        }
+        &token[s..]
+    });
 
     // 2. Attempt Connection
     println!("Connecting to LiveKit room...");

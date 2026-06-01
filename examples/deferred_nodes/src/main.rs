@@ -88,10 +88,7 @@ pub struct FanInTracker {
 impl FanInTracker {
     /// Create a new tracker expecting results from the given paths.
     pub fn new(expected_paths: Vec<String>) -> Self {
-        Self {
-            expected_paths,
-            received: HashMap::new(),
-        }
+        Self { expected_paths, received: HashMap::new() }
     }
 
     /// Record a result from an upstream path.
@@ -101,20 +98,18 @@ impl FanInTracker {
 
     /// Check if all expected paths have reported results.
     pub fn is_complete(&self) -> bool {
-        self.expected_paths
-            .iter()
-            .all(|p| self.received.contains_key(p))
+        self.expected_paths.iter().all(|p| self.received.contains_key(p))
     }
 
     /// Apply the configured merge strategy to produce the final merged output.
     pub fn merge(&self, strategy: &MergeStrategy) -> serde_json::Value {
         match strategy {
             MergeStrategy::Collect => {
-                let values: Vec<serde_json::Value> =
-                    self.expected_paths
-                        .iter()
-                        .filter_map(|p| self.received.get(p).cloned())
-                        .collect();
+                let values: Vec<serde_json::Value> = self
+                    .expected_paths
+                    .iter()
+                    .filter_map(|p| self.received.get(p).cloned())
+                    .collect();
                 serde_json::Value::Array(values)
             }
             MergeStrategy::MergeMap => {
@@ -314,8 +309,7 @@ async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info")),
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
         .init();
 
@@ -361,8 +355,10 @@ async fn main() -> anyhow::Result<()> {
     println!("  ✓ All {} paths completed in {:?}", collect_paths.len(), collect_elapsed);
     println!("  ✓ Completed paths: {:?}", collect_paths);
     println!("  ✓ Merge strategy: {}", collect_config.merge_strategy);
-    println!("  → Result type: Array with {} elements", 
-        collect_result.as_array().map_or(0, |a| a.len()));
+    println!(
+        "  → Result type: Array with {} elements",
+        collect_result.as_array().map_or(0, |a| a.len())
+    );
 
     if let Some(arr) = collect_result.as_array() {
         for (i, item) in arr.iter().enumerate() {
@@ -380,10 +376,8 @@ async fn main() -> anyhow::Result<()> {
     println!("\n--- Step 3: MergeStrategy::MergeMap ---\n");
     println!("  → Merging upstream state maps into a single map");
 
-    let merge_config = DeferredNodeConfig {
-        merge_strategy: MergeStrategy::MergeMap,
-        fan_in_timeout: None,
-    };
+    let merge_config =
+        DeferredNodeConfig { merge_strategy: MergeStrategy::MergeMap, fan_in_timeout: None };
 
     let branch_delays = vec![
         ("history", Duration::from_millis(500)),
@@ -400,11 +394,16 @@ async fn main() -> anyhow::Result<()> {
     if let Some(obj) = merge_result.as_object() {
         println!("  → Result type: Object with {} keys", obj.len());
         for key in obj.keys() {
-            let value_preview = obj.get(key)
+            let value_preview = obj
+                .get(key)
                 .map(|v| {
                     let s = v.to_string();
                     if s.len() > 60 {
-                        format!("{}...", &s[..60])
+                        let mut end = 60;
+                        while end > 0 && !s.is_char_boundary(end) {
+                            end -= 1;
+                        }
+                        format!("{}...", &s[..end])
                     } else {
                         s
                     }
@@ -441,8 +440,10 @@ async fn main() -> anyhow::Result<()> {
 
     println!("  ✓ Deferred node completed in {:?}", timeout_elapsed);
     println!("  ✓ Paths that completed before timeout: {:?}", timeout_paths);
-    println!("  → Partial result: Array with {} elements (out of 3 expected)",
-        timeout_result.as_array().map_or(0, |a| a.len()));
+    println!(
+        "  → Partial result: Array with {} elements (out of 3 expected)",
+        timeout_result.as_array().map_or(0, |a| a.len())
+    );
 
     if let Some(arr) = timeout_result.as_array() {
         for (i, item) in arr.iter().enumerate() {
@@ -455,11 +456,8 @@ async fn main() -> anyhow::Result<()> {
 
     // Check which paths were missed
     let all_expected = ["history", "technology", "economics"];
-    let missed: Vec<&str> = all_expected
-        .iter()
-        .filter(|p| !timeout_paths.contains(&p.to_string()))
-        .copied()
-        .collect();
+    let missed: Vec<&str> =
+        all_expected.iter().filter(|p| !timeout_paths.contains(&p.to_string())).copied().collect();
     if !missed.is_empty() {
         println!("  ⚠ Paths excluded due to timeout: {:?}", missed);
     }
@@ -470,12 +468,19 @@ async fn main() -> anyhow::Result<()> {
 
     println!("\n--- Summary ---\n");
     println!("  Parallel branches configured:  3 (history, technology, economics)");
-    println!("  MergeStrategy::Collect:        ✓ gathered {} items into Vec",
-        collect_result.as_array().map_or(0, |a| a.len()));
-    println!("  MergeStrategy::MergeMap:       ✓ merged into map with {} keys",
-        merge_result.as_object().map_or(0, |o| o.len()));
-    println!("  Fan-in timeout (1200ms):       ✓ {}/{} paths completed before deadline",
-        timeout_paths.len(), all_expected.len());
+    println!(
+        "  MergeStrategy::Collect:        ✓ gathered {} items into Vec",
+        collect_result.as_array().map_or(0, |a| a.len())
+    );
+    println!(
+        "  MergeStrategy::MergeMap:       ✓ merged into map with {} keys",
+        merge_result.as_object().map_or(0, |o| o.len())
+    );
+    println!(
+        "  Fan-in timeout (1200ms):       ✓ {}/{} paths completed before deadline",
+        timeout_paths.len(),
+        all_expected.len()
+    );
     println!("  Total Collect elapsed:         {:?}", collect_elapsed);
     println!("  Total MergeMap elapsed:        {:?}", merge_elapsed);
     println!("  Total Timeout elapsed:         {:?}", timeout_elapsed);
@@ -542,11 +547,7 @@ mod tests {
 
     #[test]
     fn test_fan_in_tracker_new() {
-        let tracker = FanInTracker::new(vec![
-            "a".to_string(),
-            "b".to_string(),
-            "c".to_string(),
-        ]);
+        let tracker = FanInTracker::new(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
         assert_eq!(tracker.expected_paths.len(), 3);
         assert!(tracker.received.is_empty());
         assert!(!tracker.is_complete());
@@ -554,10 +555,7 @@ mod tests {
 
     #[test]
     fn test_fan_in_tracker_record_and_complete() {
-        let mut tracker = FanInTracker::new(vec![
-            "a".to_string(),
-            "b".to_string(),
-        ]);
+        let mut tracker = FanInTracker::new(vec!["a".to_string(), "b".to_string()]);
 
         tracker.record("a", serde_json::json!({"result": "alpha"}));
         assert!(!tracker.is_complete());
@@ -568,10 +566,7 @@ mod tests {
 
     #[test]
     fn test_merge_collect() {
-        let mut tracker = FanInTracker::new(vec![
-            "x".to_string(),
-            "y".to_string(),
-        ]);
+        let mut tracker = FanInTracker::new(vec!["x".to_string(), "y".to_string()]);
         tracker.record("x", serde_json::json!({"val": 1}));
         tracker.record("y", serde_json::json!({"val": 2}));
 
@@ -584,10 +579,7 @@ mod tests {
 
     #[test]
     fn test_merge_merge_map() {
-        let mut tracker = FanInTracker::new(vec![
-            "a".to_string(),
-            "b".to_string(),
-        ]);
+        let mut tracker = FanInTracker::new(vec!["a".to_string(), "b".to_string()]);
         tracker.record("a", serde_json::json!({"key1": "val1", "key2": "val2"}));
         tracker.record("b", serde_json::json!({"key3": "val3", "key4": "val4"}));
 
@@ -602,10 +594,7 @@ mod tests {
 
     #[test]
     fn test_merge_merge_map_overwrites_duplicates() {
-        let mut tracker = FanInTracker::new(vec![
-            "first".to_string(),
-            "second".to_string(),
-        ]);
+        let mut tracker = FanInTracker::new(vec!["first".to_string(), "second".to_string()]);
         tracker.record("first", serde_json::json!({"shared": "from_first"}));
         tracker.record("second", serde_json::json!({"shared": "from_second"}));
 
@@ -618,11 +607,8 @@ mod tests {
     #[test]
     fn test_merge_collect_partial() {
         // When not all paths have reported, Collect only includes received ones
-        let mut tracker = FanInTracker::new(vec![
-            "a".to_string(),
-            "b".to_string(),
-            "c".to_string(),
-        ]);
+        let mut tracker =
+            FanInTracker::new(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
         tracker.record("a", serde_json::json!("result_a"));
         tracker.record("c", serde_json::json!("result_c"));
         // "b" is missing
@@ -637,10 +623,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_deferred_node_collect_all_complete() {
-        let config = DeferredNodeConfig {
-            merge_strategy: MergeStrategy::Collect,
-            fan_in_timeout: None,
-        };
+        let config =
+            DeferredNodeConfig { merge_strategy: MergeStrategy::Collect, fan_in_timeout: None };
         let delays = vec![
             ("history", Duration::from_millis(50)),
             ("technology", Duration::from_millis(100)),

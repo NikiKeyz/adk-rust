@@ -57,7 +57,11 @@ async fn run_model(label: &str, model: &GeminiModel) {
                                 match part {
                                     Part::Thinking { thinking, .. } => {
                                         let preview = if thinking.len() > 120 {
-                                            format!("{}...", &thinking[..120])
+                                            let mut end = 120;
+                                            while end > 0 && !thinking.is_char_boundary(end) {
+                                                end -= 1;
+                                            }
+                                            format!("{}...", &thinking[..end])
                                         } else {
                                             thinking.clone()
                                         };

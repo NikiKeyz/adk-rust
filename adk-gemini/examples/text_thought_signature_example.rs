@@ -143,7 +143,11 @@ fn do_main() -> Result<(), Box<dyn std::error::Error>> {
                 );
 
                 if let Some(sig) = thought_signature {
-                    info!(signature_preview = &sig[..10.min(sig.len())], "preserve signature");
+                    let mut end = 10.min(sig.len());
+                    while end > 0 && !sig.is_char_boundary(end) {
+                        end -= 1;
+                    }
+                    info!(signature_preview = &sig[..end], "preserve signature");
                 }
             }
         }

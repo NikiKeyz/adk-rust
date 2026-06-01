@@ -28,13 +28,27 @@ impl ExampleContext {
 }
 
 impl ReadonlyContext for ExampleContext {
-    fn invocation_id(&self) -> &str { "example-invocation" }
-    fn agent_name(&self) -> &str { "example-agent" }
-    fn user_id(&self) -> &str { "example-user" }
-    fn app_name(&self) -> &str { "mcp-manager-example" }
-    fn session_id(&self) -> &str { "example-session" }
-    fn branch(&self) -> &str { "main" }
-    fn user_content(&self) -> &Content { &self.user_content }
+    fn invocation_id(&self) -> &str {
+        "example-invocation"
+    }
+    fn agent_name(&self) -> &str {
+        "example-agent"
+    }
+    fn user_id(&self) -> &str {
+        "example-user"
+    }
+    fn app_name(&self) -> &str {
+        "mcp-manager-example"
+    }
+    fn session_id(&self) -> &str {
+        "example-session"
+    }
+    fn branch(&self) -> &str {
+        "main"
+    }
+    fn user_content(&self) -> &Content {
+        &self.user_content
+    }
 }
 
 #[tokio::main]
@@ -42,8 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .init();
 
@@ -146,6 +159,10 @@ fn truncate(s: &str, max_len: usize) -> String {
     if s.len() <= max_len {
         s.to_string()
     } else {
-        format!("{}...", &s[..max_len])
+        let mut end = max_len;
+        while end > 0 && !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}...", &s[..end])
     }
 }

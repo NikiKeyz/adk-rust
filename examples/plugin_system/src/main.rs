@@ -26,7 +26,9 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use adk_agent::LlmAgentBuilder;
-use adk_core::{Agent, CallbackContext, Content, LlmRequest, LlmResponse, Llm, Result, Tool, async_trait};
+use adk_core::{
+    Agent, CallbackContext, Content, Llm, LlmRequest, LlmResponse, Result, Tool, async_trait,
+};
 use adk_model::GeminiModel;
 use adk_plugin::{
     AfterModelCallResult, AfterToolCallResult, BeforeModelCallResult, BeforeToolCallResult,
@@ -34,7 +36,7 @@ use adk_plugin::{
 };
 use adk_runner::Runner;
 use adk_session::{CreateRequest, InMemorySessionService, SessionService};
-use adk_tool::{tool, AdkError};
+use adk_tool::{AdkError, tool};
 use futures::StreamExt;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -124,7 +126,9 @@ impl EnhancedPlugin for LoggingPlugin {
         println!("  📋 [LoggingPlugin] before_tool_call: tool={}, args={}", tool.name(), args);
 
         // Track call count in shared context
-        let mut stats = plugin_ctx.get::<LoggingStats>().await
+        let mut stats = plugin_ctx
+            .get::<LoggingStats>()
+            .await
             .unwrap_or(LoggingStats { tool_calls: 0, model_calls: 0 });
         stats.tool_calls += 1;
         plugin_ctx.insert(stats).await;
@@ -140,8 +144,11 @@ impl EnhancedPlugin for LoggingPlugin {
         _ctx: Arc<dyn CallbackContext>,
         _plugin_ctx: &PluginContext,
     ) -> Result<AfterToolCallResult> {
-        println!("  📋 [LoggingPlugin] after_tool_call: tool={}, result_size={} bytes",
-            tool.name(), result.to_string().len());
+        println!(
+            "  📋 [LoggingPlugin] after_tool_call: tool={}, result_size={} bytes",
+            tool.name(),
+            result.to_string().len()
+        );
         Ok(AfterToolCallResult::Continue(result))
     }
 
@@ -152,10 +159,14 @@ impl EnhancedPlugin for LoggingPlugin {
         plugin_ctx: &PluginContext,
     ) -> Result<BeforeModelCallResult> {
         let msg_count = request.contents.len();
-        println!("  📋 [LoggingPlugin] before_model_call: model={}, messages={}",
-            request.model, msg_count);
+        println!(
+            "  📋 [LoggingPlugin] before_model_call: model={}, messages={}",
+            request.model, msg_count
+        );
 
-        let mut stats = plugin_ctx.get::<LoggingStats>().await
+        let mut stats = plugin_ctx
+            .get::<LoggingStats>()
+            .await
             .unwrap_or(LoggingStats { tool_calls: 0, model_calls: 0 });
         stats.model_calls += 1;
         plugin_ctx.insert(stats).await;
@@ -170,8 +181,10 @@ impl EnhancedPlugin for LoggingPlugin {
         _plugin_ctx: &PluginContext,
     ) -> Result<AfterModelCallResult> {
         let has_content = response.content.is_some();
-        println!("  📋 [LoggingPlugin] after_model_call: has_content={}, turn_complete={}",
-            has_content, response.turn_complete);
+        println!(
+            "  📋 [LoggingPlugin] after_model_call: has_content={}, turn_complete={}",
+            has_content, response.turn_complete
+        );
         Ok(AfterModelCallResult::Continue(response))
     }
 }
@@ -242,9 +255,7 @@ struct CachingPlugin {
 
 impl CachingPlugin {
     fn new() -> Self {
-        Self {
-            cache: Arc::new(RwLock::new(HashMap::new())),
-        }
+        Self { cache: Arc::new(RwLock::new(HashMap::new())) }
     }
 
     fn cache_key(tool_name: &str, args: &Value) -> String {
@@ -274,11 +285,14 @@ impl EnhancedPlugin for CachingPlugin {
         let cache = self.cache.read().await;
         if let Some(cached_result) = cache.get(&key) {
             // Cache HIT — short-circuit tool execution
-            println!("  ⚡ [CachingPlugin] CACHE HIT for {}! Skipping tool execution.", tool.name());
+            println!(
+                "  ⚡ [CachingPlugin] CACHE HIT for {}! Skipping tool execution.",
+                tool.name()
+            );
 
             // Update stats in PluginContext
-            let mut stats = plugin_ctx.get::<ToolCache>().await
-                .unwrap_or(ToolCache { hits: 0, misses: 0 });
+            let mut stats =
+                plugin_ctx.get::<ToolCache>().await.unwrap_or(ToolCache { hits: 0, misses: 0 });
             stats.hits += 1;
             plugin_ctx.insert(stats).await;
 
@@ -289,8 +303,8 @@ impl EnhancedPlugin for CachingPlugin {
         // Cache MISS
         println!("  ⚡ [CachingPlugin] CACHE MISS for {}. Proceeding with execution.", tool.name());
 
-        let mut stats = plugin_ctx.get::<ToolCache>().await
-            .unwrap_or(ToolCache { hits: 0, misses: 0 });
+        let mut stats =
+            plugin_ctx.get::<ToolCache>().await.unwrap_or(ToolCache { hits: 0, misses: 0 });
         stats.misses += 1;
         plugin_ctx.insert(stats).await;
 
@@ -328,8 +342,8 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    let api_key = std::env::var("GOOGLE_API_KEY")
-        .expect("GOOGLE_API_KEY must be set — see .env.example");
+    let api_key =
+        std::env::var("GOOGLE_API_KEY").expect("GOOGLE_API_KEY must be set — see .env.example");
 
     println!("╔══════════════════════════════════════════════════════════════╗");
     println!("║  Enhanced Plugin System Demo — ADK-Rust Sprint 1            ║");
@@ -359,7 +373,7 @@ async fn main() -> anyhow::Result<()> {
         .instruction(
             "You are a helpful weather assistant. When asked about weather, \
              use the get_weather tool to fetch current conditions. \
-             Always provide a brief, friendly summary of the weather."
+             Always provide a brief, friendly summary of the weather.",
         )
         .tool(Arc::new(GetWeather))
         .enhanced_plugins(vec![
@@ -508,6 +522,10 @@ fn truncate(s: &str, max: usize) -> String {
     if s.len() <= max {
         s.to_string()
     } else {
-        format!("{}...", &s[..max])
+        let mut end = max;
+        while end > 0 && !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}...", &s[..end])
     }
 }

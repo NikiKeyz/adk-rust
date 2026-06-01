@@ -49,9 +49,7 @@ struct FlakySearchTool {
 
 impl FlakySearchTool {
     fn new() -> Self {
-        Self {
-            call_count: AtomicU32::new(0),
-        }
+        Self { call_count: AtomicU32::new(0) }
     }
 }
 
@@ -78,14 +76,8 @@ impl Tool for FlakySearchTool {
         }))
     }
 
-    async fn execute(
-        &self,
-        _ctx: Arc<dyn ToolContext>,
-        args: Value,
-    ) -> adk_core::Result<Value> {
-        let query = args.get("query")
-            .and_then(|v| v.as_str())
-            .unwrap_or("unknown");
+    async fn execute(&self, _ctx: Arc<dyn ToolContext>, args: Value) -> adk_core::Result<Value> {
+        let query = args.get("query").and_then(|v| v.as_str()).unwrap_or("unknown");
 
         let count = self.call_count.fetch_add(1, Ordering::SeqCst) + 1;
 
@@ -147,8 +139,8 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    let api_key = std::env::var("GOOGLE_API_KEY")
-        .expect("GOOGLE_API_KEY must be set — see .env.example");
+    let api_key =
+        std::env::var("GOOGLE_API_KEY").expect("GOOGLE_API_KEY must be set — see .env.example");
 
     println!("╔══════════════════════════════════════════════════════════════╗");
     println!("║  Retry & Reflect Demo — ADK-Rust Sprint 2                   ║");
@@ -189,7 +181,7 @@ async fn main() -> anyhow::Result<()> {
             "You are a helpful research assistant. When asked a question, \
              use the search_web tool to find relevant information. \
              If a search fails, try again with the same or a refined query. \
-             Summarize the results concisely."
+             Summarize the results concisely.",
         )
         .tool(flaky_tool as Arc<dyn Tool>)
         .enhanced_plugin(Arc::new(retry_plugin) as Arc<dyn EnhancedPlugin>)
@@ -228,7 +220,8 @@ async fn main() -> anyhow::Result<()> {
     println!("──────────────────────────────────────────────────────────────────\n");
 
     let start = std::time::Instant::now();
-    let content = Content::new("user").with_text("What is Rust programming language? Search for it.");
+    let content =
+        Content::new("user").with_text("What is Rust programming language? Search for it.");
     let mut stream = runner.run_str("user", "demo-session", content).await?;
 
     let mut response_text = String::new();
@@ -293,6 +286,10 @@ fn truncate(s: &str, max: usize) -> String {
     if s.len() <= max {
         s.to_string()
     } else {
-        format!("{}...", &s[..max])
+        let mut end = max;
+        while end > 0 && !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}...", &s[..end])
     }
 }

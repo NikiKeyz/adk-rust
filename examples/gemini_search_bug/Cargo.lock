@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "adk-agent"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "adk-core",
  "adk-skill",
@@ -20,7 +20,7 @@ dependencies = [
 
 [[package]]
 name = "adk-artifact"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "adk-core",
  "async-trait",
@@ -30,7 +30,7 @@ dependencies = [
 
 [[package]]
 name = "adk-core"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -39,13 +39,15 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
+ "tracing",
  "uuid",
 ]
 
 [[package]]
 name = "adk-gemini"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
+ "adk-core",
  "async-stream",
  "async-trait",
  "base64",
@@ -72,7 +74,7 @@ dependencies = [
 
 [[package]]
 name = "adk-model"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "adk-core",
  "adk-gemini",
@@ -91,7 +93,7 @@ dependencies = [
 
 [[package]]
 name = "adk-plugin"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "adk-core",
  "serde_json",
@@ -101,7 +103,7 @@ dependencies = [
 
 [[package]]
 name = "adk-runner"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "adk-artifact",
  "adk-core",
@@ -113,6 +115,7 @@ dependencies = [
  "futures",
  "serde",
  "serde_json",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-util",
  "tracing",
@@ -121,7 +124,7 @@ dependencies = [
 
 [[package]]
 name = "adk-rust-macros"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -130,7 +133,7 @@ dependencies = [
 
 [[package]]
 name = "adk-session"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "adk-core",
  "async-trait",
@@ -143,7 +146,7 @@ dependencies = [
 
 [[package]]
 name = "adk-skill"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "adk-core",
  "adk-plugin",
@@ -157,7 +160,7 @@ dependencies = [
 
 [[package]]
 name = "adk-telemetry"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "thiserror 2.0.18",
  "tracing",
@@ -166,7 +169,7 @@ dependencies = [
 
 [[package]]
 name = "adk-tool"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "adk-core",
  "adk-rust-macros",

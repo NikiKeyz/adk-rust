@@ -94,20 +94,17 @@ async fn ask_agent(State(state): State<AppState>, Json(body): Json<AskRequest>) 
     }
 
     // Run the agent
-    let mut event_stream = match state
-        .runner
-        .run_str("visitor", &session_id_str, user_content)
-        .await
-    {
-        Ok(s) => s,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": format!("runner error: {e}")})),
-            )
-                .into_response();
-        }
-    };
+    let mut event_stream =
+        match state.runner.run_str("visitor", &session_id_str, user_content).await {
+            Ok(s) => s,
+            Err(e) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": format!("runner error: {e}")})),
+                )
+                    .into_response();
+            }
+        };
 
     // Collect the final agent response
     let mut response_text = String::new();
@@ -168,10 +165,7 @@ async fn main() -> anyhow::Result<()> {
     let business_toml = Path::new(env!("CARGO_MANIFEST_DIR")).join("business.toml");
     let loader = BusinessContextLoader::from_file(&business_toml)?;
     let ctx = loader.load();
-    println!(
-        "📋 Loaded business context: {} ({})",
-        ctx.site_name, ctx.domain
-    );
+    println!("📋 Loaded business context: {} ({})", ctx.site_name, ctx.domain);
     println!(
         "   {} capabilities, {} policies, {} products\n",
         ctx.capabilities.len(),
@@ -195,16 +189,8 @@ async fn main() -> anyhow::Result<()> {
          Keep answers concise and helpful.",
         site = ctx.site_name,
         desc = ctx.site_description,
-        tone = ctx
-            .brand_voice
-            .as_ref()
-            .and_then(|b| b.tone.as_deref())
-            .unwrap_or("professional"),
-        greeting = ctx
-            .brand_voice
-            .as_ref()
-            .and_then(|b| b.greeting.as_deref())
-            .unwrap_or("Hello!"),
+        tone = ctx.brand_voice.as_ref().and_then(|b| b.tone.as_deref()).unwrap_or("professional"),
+        greeting = ctx.brand_voice.as_ref().and_then(|b| b.greeting.as_deref()).unwrap_or("Hello!"),
         products = ctx
             .products
             .iter()
@@ -248,10 +234,7 @@ async fn main() -> anyhow::Result<()> {
             .build()?,
     );
 
-    let app_state = AppState {
-        runner,
-        session_service,
-    };
+    let app_state = AppState { runner, session_service };
 
     // --- Step 4: Build AWP state with all protocol services ---
     let event_service = Arc::new(InMemoryEventSubscriptionService::new());
@@ -273,9 +256,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/products", get(list_products))
         .with_state(app_state);
 
-    let app = axum::Router::new()
-        .merge(awp_routes(awp_state))
-        .merge(custom_routes);
+    let app = axum::Router::new().merge(awp_routes(awp_state)).merge(custom_routes);
 
     // --- Step 6: Start the server ---
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
@@ -292,10 +273,7 @@ async fn main() -> anyhow::Result<()> {
 
     // 7a. Discovery document
     println!("── AWP Discovery ──────────────────────────────");
-    let resp = client
-        .get(format!("{base}/.well-known/awp.json"))
-        .send()
-        .await?;
+    let resp = client.get(format!("{base}/.well-known/awp.json")).send().await?;
     println!("GET /.well-known/awp.json → {}", resp.status());
     let doc: serde_json::Value = resp.json().await?;
     println!("  siteName: {}", doc["siteName"]);
@@ -309,10 +287,7 @@ async fn main() -> anyhow::Result<()> {
     let manifest: serde_json::Value = resp.json().await?;
     println!("  @context: {}", manifest["@context"]);
     println!("  @type: {}", manifest["@type"]);
-    let caps = manifest["capabilities"]
-        .as_array()
-        .map(|a| a.len())
-        .unwrap_or(0);
+    let caps = manifest["capabilities"].as_array().map(|a| a.len()).unwrap_or(0);
     println!("  capabilities: {caps}\n");
 
     // 7c. Health endpoint
@@ -329,10 +304,7 @@ async fn main() -> anyhow::Result<()> {
         .header("AWP-Version", "1.1")
         .send()
         .await?;
-    println!(
-        "GET with AWP-Version: 1.1 → {} (compatible)",
-        resp.status()
-    );
+    println!("GET with AWP-Version: 1.1 → {} (compatible)", resp.status());
     let _ = resp.text().await;
 
     let resp = client
@@ -340,10 +312,7 @@ async fn main() -> anyhow::Result<()> {
         .header("AWP-Version", "2.0")
         .send()
         .await?;
-    println!(
-        "GET with AWP-Version: 2.0 → {} (incompatible)\n",
-        resp.status()
-    );
+    println!("GET with AWP-Version: 2.0 → {} (incompatible)\n", resp.status());
     let _ = resp.text().await;
 
     // 7e. Event subscription
@@ -354,25 +323,15 @@ async fn main() -> anyhow::Result<()> {
         "eventTypes": ["health.changed"],
         "secret": "test-secret-key"
     });
-    let resp = client
-        .post(format!("{base}/awp/events/subscribe"))
-        .json(&sub_body)
-        .send()
-        .await?;
+    let resp = client.post(format!("{base}/awp/events/subscribe")).json(&sub_body).send().await?;
     println!("POST /awp/events/subscribe → {}", resp.status());
     let sub_resp: serde_json::Value = resp.json().await?;
     println!("  subscription id: {}", sub_resp["id"]);
 
-    let resp = client
-        .get(format!("{base}/awp/events/subscriptions"))
-        .send()
-        .await?;
+    let resp = client.get(format!("{base}/awp/events/subscriptions")).send().await?;
     println!("GET /awp/events/subscriptions → {}", resp.status());
     let subs: serde_json::Value = resp.json().await?;
-    println!(
-        "  count: {}\n",
-        subs.as_array().map(|a| a.len()).unwrap_or(0)
-    );
+    println!("  count: {}\n", subs.as_array().map(|a| a.len()).unwrap_or(0));
 
     // 7f. A2A message
     println!("── AWP A2A ────────────────────────────────────");
@@ -383,11 +342,7 @@ async fn main() -> anyhow::Result<()> {
         "messageType": "request",
         "payload": {"query": "What products do you sell?"}
     });
-    let resp = client
-        .post(format!("{base}/awp/a2a"))
-        .json(&a2a_body)
-        .send()
-        .await?;
+    let resp = client.post(format!("{base}/awp/a2a")).json(&a2a_body).send().await?;
     println!("POST /awp/a2a → {}", resp.status());
     let a2a_resp: serde_json::Value = resp.json().await?;
     println!("  status: {}\n", a2a_resp["status"]);
@@ -404,18 +359,17 @@ async fn main() -> anyhow::Result<()> {
 
     // 7h. Ask the LLM agent
     println!("── LLM Agent ──────────────────────────────────");
-    let ask_body =
-        serde_json::json!({"question": "What is your most popular product and how much does it cost?"});
-    let resp = client
-        .post(format!("{base}/ask"))
-        .json(&ask_body)
-        .send()
-        .await?;
+    let ask_body = serde_json::json!({"question": "What is your most popular product and how much does it cost?"});
+    let resp = client.post(format!("{base}/ask")).json(&ask_body).send().await?;
     println!("POST /ask → {}", resp.status());
     let answer: serde_json::Value = resp.json().await?;
     let answer_text = answer["answer"].as_str().unwrap_or("(no answer)");
     let display = if answer_text.len() > 300 {
-        format!("{}...", &answer_text[..300])
+        let mut end = 300;
+        while end > 0 && !answer_text.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}...", &answer_text[..end])
     } else {
         answer_text.to_string()
     };

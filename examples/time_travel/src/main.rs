@@ -217,10 +217,7 @@ impl TimeTravelHandle {
     /// Equivalent to `TimeTravelHandle::resume_from(step)` in the adk-graph API.
     fn resume_from(&self, step: usize) -> anyhow::Result<Vec<Checkpoint>> {
         if step >= self.checkpoints.len() {
-            anyhow::bail!(
-                "Step {step} does not exist. Valid range: 0..{}",
-                self.checkpoints.len()
-            );
+            anyhow::bail!("Step {step} does not exist. Valid range: 0..{}", self.checkpoints.len());
         }
 
         let base_state = self.checkpoints[step].state.clone();
@@ -238,17 +235,12 @@ impl TimeTravelHandle {
     /// Equivalent to `TimeTravelHandle::fork_at(step, new_thread_id)` in the adk-graph API.
     fn fork_at(&mut self, step: usize, new_thread_id: &str) -> anyhow::Result<()> {
         if step >= self.checkpoints.len() {
-            anyhow::bail!(
-                "Step {step} does not exist. Valid range: 0..{}",
-                self.checkpoints.len()
-            );
+            anyhow::bail!("Step {step} does not exist. Valid range: 0..{}", self.checkpoints.len());
         }
 
         let base_state = self.checkpoints[step].state.clone();
-        let forked_checkpoints =
-            simulate_forked_execution(base_state, step, new_thread_id);
-        self.forked_threads
-            .insert(new_thread_id.to_string(), forked_checkpoints);
+        let forked_checkpoints = simulate_forked_execution(base_state, step, new_thread_id);
+        self.forked_threads.insert(new_thread_id.to_string(), forked_checkpoints);
         Ok(())
     }
 
@@ -371,7 +363,9 @@ fn simulate_research_workflow() -> (Vec<Checkpoint>, ResearchState) {
 
     // Step 3: Cross-reference secondary sources
     state.phase = "cross_reference".to_string();
-    state.findings.push("Tokio runtime leverages ownership for safe async task spawning".to_string());
+    state
+        .findings
+        .push("Tokio runtime leverages ownership for safe async task spawning".to_string());
     state.sources.push("Tokio internals: work-stealing scheduler".to_string());
     state.sources.push("Crossbeam: lock-free data structures in Rust".to_string());
     state.confidence = 0.65;
@@ -433,9 +427,7 @@ fn simulate_divergent_execution(
             }
             1 => {
                 base_state.phase = "source_gathering".to_string();
-                base_state
-                    .sources
-                    .push("Alternative: Oxide Computer Systems blog".to_string());
+                base_state.sources.push("Alternative: Oxide Computer Systems blog".to_string());
                 base_state.confidence = 0.12;
             }
             2 => {
@@ -452,9 +444,7 @@ fn simulate_divergent_execution(
                     "DIVERGENT: Arc<Mutex<T>> pattern shows ownership enables safe shared state"
                         .to_string(),
                 );
-                base_state
-                    .sources
-                    .push("Alternative: Servo browser engine case study".to_string());
+                base_state.sources.push("Alternative: Servo browser engine case study".to_string());
                 base_state.confidence = 0.58;
             }
             4 => {
@@ -500,12 +490,10 @@ fn simulate_forked_execution(
 
     // The fork explores a different research angle
     base_state.phase = "forked_exploration".to_string();
-    base_state.findings.push(format!(
-        "FORK[{thread_id}]: Exploring memory safety without garbage collection"
-    ));
     base_state
-        .sources
-        .push("Fork source: Linear types in Haskell vs Rust ownership".to_string());
+        .findings
+        .push(format!("FORK[{thread_id}]: Exploring memory safety without garbage collection"));
+    base_state.sources.push("Fork source: Linear types in Haskell vs Rust ownership".to_string());
     base_state.confidence = base_state.confidence * 0.8; // Lower confidence in new direction
 
     checkpoints.push(Checkpoint {
@@ -681,9 +669,7 @@ async fn main() -> anyhow::Result<()> {
 
     let fork_step = 1;
     let fork_thread = "alternative_research";
-    print_progress(&format!(
-        "Forking at step {fork_step} into new thread: \"{fork_thread}\""
-    ));
+    print_progress(&format!("Forking at step {fork_step} into new thread: \"{fork_thread}\""));
     print_progress(&format!(
         "Base state at fork point: {}",
         checkpoints[fork_step].state.summary()
@@ -696,10 +682,7 @@ async fn main() -> anyhow::Result<()> {
     println!("  Forked thread \"{fork_thread}\" execution:");
     println!("  {}", "-".repeat(80));
     for fcp in forked {
-        println!(
-            "  Step {}: [{}] {}",
-            fcp.step, fcp.state.phase, fcp.description
-        );
+        println!("  Step {}: [{}] {}", fcp.step, fcp.state.phase, fcp.description);
         for finding in &fcp.state.findings {
             if finding.starts_with(&format!("FORK[{fork_thread}]")) {
                 println!("       → {finding}");
@@ -726,19 +709,14 @@ async fn main() -> anyhow::Result<()> {
 
     let replay_from = 1;
     let replay_to = 4;
-    print_progress(&format!(
-        "Replaying steps {replay_from} through {replay_to}..."
-    ));
+    print_progress(&format!("Replaying steps {replay_from} through {replay_to}..."));
     print_progress("Printing state transitions at each step:");
     println!();
 
     let transitions = handle.replay(replay_from, replay_to)?;
 
     for transition in &transitions {
-        println!(
-            "  Step {} → Step {}:",
-            transition.from_step, transition.to_step
-        );
+        println!("  Step {} → Step {}:", transition.from_step, transition.to_step);
         println!("    Before: {}", transition.from_state);
         println!("    After:  {}", transition.to_state);
         println!("    Changes:");
@@ -785,7 +763,11 @@ fn truncate_str(s: &str, max_len: usize) -> String {
     if s.len() <= max_len {
         s.to_string()
     } else {
-        format!("{}...", &s[..max_len - 3])
+        let mut end = max_len.saturating_sub(3);
+        while end > 0 && !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}...", &s[..end])
     }
 }
 
@@ -807,10 +789,7 @@ mod tests {
             msg.contains("ADK_TEST_NONEXISTENT_VAR_TIME_TRAVEL"),
             "Error should contain the variable name, got: {msg}"
         );
-        assert!(
-            msg.contains(".env.example"),
-            "Error should reference .env.example, got: {msg}"
-        );
+        assert!(msg.contains(".env.example"), "Error should reference .env.example, got: {msg}");
     }
 
     #[test]
@@ -937,12 +916,9 @@ mod tests {
         let forked = handle.forked_threads.get("alt_thread").unwrap();
         assert!(!forked.is_empty());
         // Forked thread should contain findings referencing the fork
-        let has_fork_finding = forked.iter().any(|cp| {
-            cp.state
-                .findings
-                .iter()
-                .any(|f| f.contains("FORK[alt_thread]"))
-        });
+        let has_fork_finding = forked
+            .iter()
+            .any(|cp| cp.state.findings.iter().any(|f| f.contains("FORK[alt_thread]")));
         assert!(has_fork_finding, "Forked thread should have fork-specific findings");
     }
 

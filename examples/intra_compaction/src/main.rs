@@ -62,8 +62,7 @@ async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info")),
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
         .init();
 
@@ -80,16 +79,19 @@ async fn main() -> anyhow::Result<()> {
     // In production you would use a higher threshold (e.g., 50_000–100_000).
     // We use a low value here so compaction triggers quickly during the demo.
 
-    let compaction_config = IntraCompactionConfig {
-        token_threshold: 2000,
-        overlap_event_count: 3,
-        chars_per_token: 4,
-    };
+    let compaction_config =
+        IntraCompactionConfig { token_threshold: 2000, overlap_event_count: 3, chars_per_token: 4 };
 
     println!("--- Step 1: Compaction Configuration ---\n");
     println!("  Token threshold:     {} tokens", compaction_config.token_threshold);
-    println!("  Overlap event count: {} events preserved after compaction", compaction_config.overlap_event_count);
-    println!("  Chars-per-token:     {} (heuristic ratio for estimation)", compaction_config.chars_per_token);
+    println!(
+        "  Overlap event count: {} events preserved after compaction",
+        compaction_config.overlap_event_count
+    );
+    println!(
+        "  Chars-per-token:     {} (heuristic ratio for estimation)",
+        compaction_config.chars_per_token
+    );
 
     // -----------------------------------------------------------------------
     // Step 2: Create the LLM model, agent, and summarizer
@@ -165,18 +167,15 @@ async fn main() -> anyhow::Result<()> {
          Include details about the three-way handshake, flow control, and congestion control \
          mechanisms in TCP, and why UDP is preferred for real-time applications like video \
          streaming and online gaming.",
-
         "Now explain how HTTP/2 improves upon HTTP/1.1. Discuss multiplexing, header \
          compression with HPACK, server push, stream prioritization, and the binary framing \
          layer. Also explain why HTTP/2 still uses TCP and what problems that causes, \
          particularly head-of-line blocking at the transport layer.",
-
         "Building on what we discussed about TCP limitations, explain how QUIC protocol \
          and HTTP/3 address these issues. Cover the use of UDP as the transport layer, \
          built-in TLS 1.3, connection migration, independent stream multiplexing without \
          head-of-line blocking, and 0-RTT connection establishment. Compare the latency \
          characteristics with HTTP/2 over TCP.",
-
         "Explain the concept of WebSockets and how they differ from regular HTTP requests. \
          Cover the upgrade handshake, full-duplex communication, frame types (text, binary, \
          ping/pong, close), and common use cases like chat applications, live dashboards, \
@@ -189,7 +188,13 @@ async fn main() -> anyhow::Result<()> {
     for (i, prompt) in prompts.iter().enumerate() {
         let turn = i + 1;
         println!("  ┌─ Turn {turn} ─────────────────────────────────────────");
-        println!("  │ User: {}...", &prompt[..60]);
+        println!("  │ User: {}...", {
+            let mut e = 60.min(prompt.len());
+            while e > 0 && !prompt.is_char_boundary(e) {
+                e -= 1;
+            }
+            &prompt[..e]
+        });
 
         // Estimate tokens before this turn by checking the session events
         let session = sessions
@@ -212,9 +217,8 @@ async fn main() -> anyhow::Result<()> {
             parts: vec![Part::Text { text: prompt.to_string() }],
         };
 
-        let mut stream = runner
-            .run(UserId::new("user")?, SessionId::new(session_id)?, user_content)
-            .await?;
+        let mut stream =
+            runner.run(UserId::new("user")?, SessionId::new(session_id)?, user_content).await?;
 
         let mut response_text = String::new();
         while let Some(result) = stream.next().await {
@@ -237,7 +241,11 @@ async fn main() -> anyhow::Result<()> {
 
         // Show a truncated response
         let preview = if response_text.len() > 120 {
-            format!("{}...", &response_text[..120])
+            let mut end = 120;
+            while end > 0 && !response_text.is_char_boundary(end) {
+                end -= 1;
+            }
+            format!("{}...", &response_text[..end])
         } else {
             response_text.clone()
         };
@@ -263,8 +271,14 @@ async fn main() -> anyhow::Result<()> {
         // we'd expect 2 * turn events.
         let expected_without_compaction = 2 * turn;
         if events_after.len() < expected_without_compaction {
-            println!("  │ 🗜️  Compaction detected! Events reduced from expected {expected_without_compaction} to {}", events_after.len());
-            println!("  │    Preserved recent events (overlap): {}", compaction_config.overlap_event_count.min(events_after.len()));
+            println!(
+                "  │ 🗜️  Compaction detected! Events reduced from expected {expected_without_compaction} to {}",
+                events_after.len()
+            );
+            println!(
+                "  │    Preserved recent events (overlap): {}",
+                compaction_config.overlap_event_count.min(events_after.len())
+            );
         }
 
         println!("  └──────────────────────────────────────────────\n");
@@ -291,9 +305,8 @@ async fn main() -> anyhow::Result<()> {
         parts: vec![Part::Text { text: followup.to_string() }],
     };
 
-    let mut stream = runner
-        .run(UserId::new("user")?, SessionId::new(session_id)?, followup_content)
-        .await?;
+    let mut stream =
+        runner.run(UserId::new("user")?, SessionId::new(session_id)?, followup_content).await?;
 
     let mut followup_response = String::new();
     while let Some(result) = stream.next().await {
@@ -316,7 +329,11 @@ async fn main() -> anyhow::Result<()> {
 
     // Print the full follow-up response to show coherence
     let preview = if followup_response.len() > 500 {
-        format!("{}...", &followup_response[..500])
+        let mut end = 500;
+        while end > 0 && !followup_response.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}...", &followup_response[..end])
     } else {
         followup_response.clone()
     };

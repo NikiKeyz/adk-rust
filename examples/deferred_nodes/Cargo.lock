@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "adk-agent"
-version = "0.8.5"
+version = "0.10.0"
 dependencies = [
  "adk-core",
  "adk-skill",
@@ -20,7 +20,7 @@ dependencies = [
 
 [[package]]
 name = "adk-core"
-version = "0.8.5"
+version = "0.10.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -35,7 +35,7 @@ dependencies = [
 
 [[package]]
 name = "adk-gemini"
-version = "0.8.5"
+version = "0.10.0"
 dependencies = [
  "adk-core",
  "async-stream",
@@ -61,7 +61,7 @@ dependencies = [
 
 [[package]]
 name = "adk-graph"
-version = "0.8.5"
+version = "0.10.0"
 dependencies = [
  "adk-core",
  "async-stream",
@@ -78,7 +78,7 @@ dependencies = [
 
 [[package]]
 name = "adk-model"
-version = "0.8.5"
+version = "0.10.0"
 dependencies = [
  "adk-core",
  "adk-gemini",
@@ -97,7 +97,7 @@ dependencies = [
 
 [[package]]
 name = "adk-plugin"
-version = "0.8.5"
+version = "0.10.0"
 dependencies = [
  "adk-core",
  "serde_json",
@@ -107,7 +107,7 @@ dependencies = [
 
 [[package]]
 name = "adk-skill"
-version = "0.8.5"
+version = "0.10.0"
 dependencies = [
  "adk-core",
  "adk-plugin",
@@ -121,7 +121,7 @@ dependencies = [
 
 [[package]]
 name = "adk-telemetry"
-version = "0.8.5"
+version = "0.10.0"
 dependencies = [
  "thiserror",
  "tracing",

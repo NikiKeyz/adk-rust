@@ -70,7 +70,13 @@ type ScenarioFn = fn() -> ScenarioFuture;
 
 fn sig_display(sig: &Option<String>) -> String {
     match sig {
-        Some(s) if s.len() > 40 => format!("{}…[{}B]", &s[..40], s.len()),
+        Some(s) if s.len() > 40 => {
+            let mut end = 40;
+            while end > 0 && !s.is_char_boundary(end) {
+                end -= 1;
+            }
+            format!("{}…[{}B]", &s[..end], s.len())
+        }
         Some(s) => s.clone(),
         None => "None".into(),
     }
@@ -144,9 +150,7 @@ fn skip_known_gemini_incompatibility(
         || message.contains("404")
         || message.contains("FAILED_PRECONDITION")
     {
-        return Some(format!(
-            "{tool_name} is not available for model '{model}' or this API key"
-        ));
+        return Some(format!("{tool_name} is not available for model '{model}' or this API key"));
     }
     None
 }
@@ -245,11 +249,7 @@ async fn make_runner(agent: Arc<dyn Agent>, session_id: &str) -> anyhow::Result<
         })
         .await?;
 
-    Ok(Runner::builder()
-        .app_name(APP_NAME)
-        .agent(agent)
-        .session_service(sessions)
-        .build()?)
+    Ok(Runner::builder().app_name(APP_NAME).agent(agent).session_service(sessions).build()?)
 }
 
 async fn run_agent_turn(
@@ -528,10 +528,7 @@ async fn test_computer_use_invocation() -> anyhow::Result<ScenarioOutcome> {
         _ctx: Arc<dyn ToolContext>,
         args: serde_json::Value,
     ) -> Result<serde_json::Value> {
-        let url = args["url"]
-            .as_str()
-            .unwrap_or("https://www.rust-lang.org")
-            .to_string();
+        let url = args["url"].as_str().unwrap_or("https://www.rust-lang.org").to_string();
         Ok(json!({
             "url": url,
             "current_url": url,

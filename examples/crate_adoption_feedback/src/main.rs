@@ -97,7 +97,15 @@ fn make_tool_audit_callback() -> BeforeToolCallback {
                     .tool_input()
                     .map(|v| {
                         let s = v.to_string();
-                        if s.len() > 80 { format!("{}...", &s[..80]) } else { s }
+                        if s.len() > 80 {
+                            let mut end = 80;
+                            while end > 0 && !s.is_char_boundary(end) {
+                                end -= 1;
+                            }
+                            format!("{}...", &s[..end])
+                        } else {
+                            s
+                        }
                     })
                     .unwrap_or_default();
                 println!("  [audit] tool={name} input={input_preview}");
@@ -119,7 +127,10 @@ fn demo_composable_telemetry() {
 
     // Verify the function exists and returns an error for unreachable endpoint
     // (we can't actually connect without a collector running)
-    match adk_telemetry::build_otlp_layer::<tracing_subscriber::Registry>("demo-service", "http://localhost:4317") {
+    match adk_telemetry::build_otlp_layer::<tracing_subscriber::Registry>(
+        "demo-service",
+        "http://localhost:4317",
+    ) {
         Ok(_layer) => {
             println!("  ✓ build_otlp_layer returned a composable layer");
             println!("  ✓ Layer can be used with tracing_subscriber::registry().with(layer)");

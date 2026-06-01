@@ -49,5 +49,13 @@ fn trim_for_display(text: &str) -> String {
     const MAX_LEN: usize = 200;
 
     let compact = text.split_whitespace().collect::<Vec<_>>().join(" ");
-    if compact.len() <= MAX_LEN { compact } else { format!("{}...", &compact[..MAX_LEN]) }
+    if compact.len() <= MAX_LEN {
+        compact
+    } else {
+        let mut end = MAX_LEN;
+        while end > 0 && !compact.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}...", &compact[..end])
+    }
 }
