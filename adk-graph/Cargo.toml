@@ -36,6 +36,9 @@ fred = { version = "10", optional = true }
 # Optional delta checkpoint dependency
 similar = { version = "3", optional = true }
 
+# Optional functional API dependencies
+tokio-util = { version = "0.7", features = ["rt"], optional = true }
+
 # Optional action node dependencies
 adk-action = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
@@ -49,6 +52,7 @@ node-cache = ["dep:blake3"]
 redis-cache = ["node-cache", "dep:fred"]
 delta-checkpoint = ["dep:similar"]
 time-travel = []
+functional = ["dep:tokio-util"]
 
 # Action node feature flags
 action = ["dep:adk-action", "dep:regex"]

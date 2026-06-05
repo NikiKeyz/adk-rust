@@ -71,6 +71,10 @@ pub enum GraphError {
     #[cfg(feature = "sqlite")]
     #[error("Database error: {0}")]
     DatabaseError(#[from] sqlx::Error),
+
+    /// Other error (used by extensions like the functional API)
+    #[error("{0}")]
+    Other(String),
 }
 
 /// Information about an interrupted execution
@@ -129,6 +133,7 @@ impl From<GraphError> for adk_core::AdkError {
             GraphError::JsonError(_) => (ErrorCategory::Internal, "graph.json"),
             #[cfg(feature = "sqlite")]
             GraphError::DatabaseError(_) => (ErrorCategory::Internal, "graph.database"),
+            GraphError::Other(_) => (ErrorCategory::Internal, "graph.other"),
         };
         adk_core::AdkError::new(ErrorComponent::Graph, category, code, err.to_string())
             .with_source(err)

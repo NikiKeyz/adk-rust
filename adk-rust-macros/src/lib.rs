@@ -362,3 +362,562 @@ impl syn::parse::Parse for ToolAttrs {
         Ok(attrs)
     }
 }
+
+
+// ─── Functional API Macros ─────────────────────────────────────────────────────
+
+/// Attribute macro that generates a workflow agent struct from an async function.
+///
+/// The annotated function becomes the workflow body. The macro generates:
+/// - A PascalCase struct (e.g., `my_workflow` → `MyWorkflowAgent`)
+/// - A `new()` constructor accepting `Arc<dyn Checkpointer>`
+/// - An `invoke()` method that creates/restores `TaskContext`, validates state,
+///   creates checkpoints, calls the function, and persists the final checkpoint
+///
+/// # Requirements
+///
+/// - The function **must** be `async`
+/// - The function **must** accept `&mut TaskContext` as its sole parameter
+/// - The function **must** return `Result<Value>` (or equivalent)
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use adk_graph::functional::TaskContext;
+/// use adk_graph::error::Result;
+/// use serde_json::Value;
+///
+/// #[entrypoint]
+/// async fn my_workflow(ctx: &mut TaskContext) -> Result<Value> {
+///     let data = step_a(ctx, "input").await?;
+///     let result = step_b(ctx, data).await?;
+///     Ok(result)
+/// }
+///
+/// // Generates: pub struct MyWorkflowAgent { ... }
+/// // with MyWorkflowAgent::new(checkpointer) and invoke(initial_state, config)
+/// ```
+#[proc_macro_attribute]
+pub fn entrypoint(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input_fn = parse_macro_input!(item as ItemFn);
+
+    // Validate: must be async
+    if input_fn.sig.asyncness.is_none() {
+        return syn::Error::new_spanned(
+            &input_fn.sig.fn_token,
+            "#[entrypoint] functions must be async",
+        )
+        .to_compile_error()
+        .into();
+    }
+
+    // Validate: must accept &mut TaskContext
+    let has_task_context = input_fn.sig.inputs.iter().any(|arg| {
+        if let FnArg::Typed(pat_type) = arg {
+            let full_str = quote!(#pat_type).to_string();
+            full_str.contains("TaskContext")
+        } else {
+            false
+        }
+    });
+
+    if !has_task_context {
+        return syn::Error::new_spanned(
+            &input_fn.sig,
+            "#[entrypoint] functions must accept `&mut TaskContext` as a parameter",
+        )
+        .to_compile_error()
+        .into();
+    }
+
+    let fn_name = &input_fn.sig.ident;
+    let fn_vis = &input_fn.vis;
+    let fn_name_str = fn_name.to_string();
+
+    // Generate PascalCase struct name: my_workflow → MyWorkflowAgent
+    let struct_name = format_ident!(
+        "{}Agent",
+        fn_name_str
+            .split('_')
+            .map(|seg| {
+                let mut chars = seg.chars();
+                match chars.next() {
+                    None => String::new(),
+                    Some(c) => c.to_uppercase().to_string() + chars.as_str(),
+                }
+            })
+            .collect::<String>()
+    );
+
+    let output = quote! {
+        // Preserve the original function for direct testing
+        #input_fn
+
+        /// Auto-generated workflow agent struct for [`#fn_name`].
+        ///
+        /// Created by the `#[entrypoint]` macro. Provides `new()` and `invoke()`
+        /// methods for executing the workflow with automatic checkpointing.
+        #fn_vis struct #struct_name {
+            checkpointer: std::sync::Arc<dyn adk_graph::checkpoint::Checkpointer>,
+        }
+
+        impl #struct_name {
+            /// Create a new workflow agent with the given checkpointer.
+            pub fn new(checkpointer: std::sync::Arc<dyn adk_graph::checkpoint::Checkpointer>) -> Self {
+                Self { checkpointer }
+            }
+
+            /// Invoke the workflow with an initial state and execution configuration.
+            ///
+            /// This method:
+            /// 1. Creates or restores a `TaskContext` from the last checkpoint
+            /// 2. Validates initial state against the configured schema
+            /// 3. Creates a checkpoint before execution
+            /// 4. Calls the annotated workflow function
+            /// 5. Persists the final checkpoint
+            /// 6. Returns the final workflow state
+            pub async fn invoke(
+                &self,
+                initial_state: adk_graph::state::State,
+                execution_config: adk_graph::node::ExecutionConfig,
+            ) -> adk_graph::error::Result<adk_graph::state::State> {
+                use adk_graph::checkpoint::Checkpointer;
+                use adk_graph::functional::ExecutionLog;
+                use adk_graph::state::Checkpoint;
+                use adk_graph::stream::StreamEvent;
+
+                let thread_id = execution_config.thread_id.clone();
+
+                // Try to restore from checkpoint if resuming
+                let (state, execution_log) = if execution_config.resume_from.is_some() {
+                    match self.checkpointer.load(&thread_id).await? {
+                        Some(checkpoint) => {
+                            let log: ExecutionLog = checkpoint
+                                .metadata
+                                .get("execution_log")
+                                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                                .unwrap_or_default();
+                            (checkpoint.state, log)
+                        }
+                        None => (initial_state, ExecutionLog::new()),
+                    }
+                } else {
+                    (initial_state, ExecutionLog::new())
+                };
+
+                // Create broadcast channel for stream events
+                let (event_tx, _) = tokio::sync::broadcast::channel::<StreamEvent>(256);
+                let cancel_token = tokio_util::sync::CancellationToken::new();
+                let execution_log = std::sync::Arc::new(tokio::sync::RwLock::new(execution_log));
+
+                // Create TaskContext
+                let mut ctx = adk_graph::functional::TaskContext::new(
+                    thread_id.clone(),
+                    state,
+                    self.checkpointer.clone(),
+                    event_tx.clone(),
+                    execution_log.clone(),
+                    cancel_token,
+                    None,
+                );
+
+                // Validate initial state against schema (if configured)
+                ctx.validate_state().map_err(|e| adk_graph::error::GraphError::Other(e.to_string()))?;
+
+                // Create pre-execution checkpoint
+                let pre_checkpoint = Checkpoint::new(
+                    &thread_id,
+                    ctx.state().clone(),
+                    0,
+                    vec![],
+                )
+                .with_metadata("phase", serde_json::Value::String("pre_execution".to_string()));
+                self.checkpointer.save(&pre_checkpoint).await?;
+
+                // Emit workflow start event
+                let _ = event_tx.send(StreamEvent::node_start(#fn_name_str, 0));
+
+                // Call the workflow function
+                let start = std::time::Instant::now();
+                let result = #fn_name(&mut ctx).await;
+
+                let duration = start.elapsed().as_millis() as u64;
+
+                match result {
+                    Ok(_value) => {
+                        // Persist final checkpoint
+                        let step = execution_log.read().await.current_step();
+                        let final_checkpoint = Checkpoint::new(
+                            &thread_id,
+                            ctx.state().clone(),
+                            step,
+                            vec![],
+                        )
+                        .with_metadata("phase", serde_json::Value::String("completed".to_string()))
+                        .with_metadata(
+                            "execution_log",
+                            serde_json::to_value(&*execution_log.read().await)
+                                .unwrap_or(serde_json::Value::Null),
+                        );
+                        self.checkpointer.save(&final_checkpoint).await?;
+
+                        // Emit workflow end event
+                        let _ = event_tx.send(StreamEvent::node_end(#fn_name_str, step, duration));
+
+                        Ok(ctx.state().clone())
+                    }
+                    Err(e) => {
+                        // Persist failure checkpoint
+                        let step = execution_log.read().await.current_step();
+                        let fail_checkpoint = Checkpoint::new(
+                            &thread_id,
+                            ctx.state().clone(),
+                            step,
+                            vec![],
+                        )
+                        .with_metadata("phase", serde_json::Value::String("failed".to_string()))
+                        .with_metadata("error", serde_json::Value::String(e.to_string()))
+                        .with_metadata(
+                            "execution_log",
+                            serde_json::to_value(&*execution_log.read().await)
+                                .unwrap_or(serde_json::Value::Null),
+                        );
+                        let _ = self.checkpointer.save(&fail_checkpoint).await;
+
+                        // Emit error event
+                        let _ = event_tx.send(StreamEvent::error(&e.to_string(), Some(#fn_name_str)));
+
+                        Err(e)
+                    }
+                }
+            }
+        }
+    };
+
+    output.into()
+}
+
+/// Attribute macro that generates a task wrapper with checkpointing, retry, and streaming.
+///
+/// The annotated function becomes the inner task body. The macro generates a wrapper
+/// function (prefixed with `__task_`) that:
+/// - Checks `ExecutionLog` for cached results (resume-skip path)
+/// - Emits `StreamEvent::node_start` and `StreamEvent::node_end` events
+/// - Implements retry logic when `retry(max_attempts, backoff)` is specified
+/// - Calls `record_completion()` on success
+/// - Calls `record_failure()` after all retries are exhausted
+///
+/// # Requirements
+///
+/// - The function **must** be `async`
+/// - The function **must** accept `&mut TaskContext` as its first argument
+///
+/// # Attributes
+///
+/// - `retry(max_attempts = N, backoff = "Xs")` — retry on failure with exponential backoff
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use adk_graph::functional::TaskContext;
+/// use adk_graph::error::Result;
+/// use serde_json::Value;
+///
+/// #[task(retry(max_attempts = 3, backoff = "1s"))]
+/// async fn step_a(ctx: &mut TaskContext, input: &str) -> Result<Value> {
+///     Ok(serde_json::json!({"processed": input}))
+/// }
+///
+/// // Generates: async fn __task_step_a(ctx: &mut TaskContext, input: &str) -> Result<Value>
+/// // which wraps step_a with checkpoint/retry/streaming logic.
+/// ```
+#[proc_macro_attribute]
+pub fn task(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input_fn = parse_macro_input!(item as ItemFn);
+
+    // Validate: must be async
+    if input_fn.sig.asyncness.is_none() {
+        return syn::Error::new_spanned(
+            &input_fn.sig.fn_token,
+            "#[task] functions must be async",
+        )
+        .to_compile_error()
+        .into();
+    }
+
+    // Validate: first argument must be &mut TaskContext
+    let has_task_context_first = input_fn
+        .sig
+        .inputs
+        .first()
+        .map(|arg| {
+            if let FnArg::Typed(pat_type) = arg {
+                let full_str = quote!(#pat_type).to_string();
+                full_str.contains("TaskContext")
+            } else {
+                false
+            }
+        })
+        .unwrap_or(false);
+
+    if !has_task_context_first {
+        return syn::Error::new_spanned(
+            &input_fn.sig,
+            "#[task] functions must accept `&mut TaskContext` as the first argument",
+        )
+        .to_compile_error()
+        .into();
+    }
+
+    // Parse retry attributes from #[task(retry(max_attempts = N, backoff = "Xs"))]
+    let task_attrs = parse_task_attrs(attr);
+
+    let fn_name = &input_fn.sig.ident;
+    let fn_vis = &input_fn.vis;
+    let fn_name_str = fn_name.to_string();
+    let wrapper_name = format_ident!("__task_{}", fn_name);
+
+    // Collect function parameters (all of them for the wrapper signature)
+    let params = &input_fn.sig.inputs;
+    let return_type = &input_fn.sig.output;
+
+    // Collect the argument names for forwarding the call (skip `ctx`)
+    let forward_args: Vec<_> = input_fn
+        .sig
+        .inputs
+        .iter()
+        .skip(1) // Skip ctx
+        .filter_map(|arg| {
+            if let FnArg::Typed(pat_type) = arg {
+                Some(&pat_type.pat)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    // Build the call expression
+    let call_expr = if forward_args.is_empty() {
+        quote! { #fn_name(ctx).await }
+    } else {
+        quote! { #fn_name(ctx, #(#forward_args),*).await }
+    };
+
+    // Generate retry logic or single-attempt logic
+    let execution_body = if let Some(retry_config) = &task_attrs.retry {
+        let max_attempts = retry_config.max_attempts;
+        let backoff_secs = retry_config.backoff_secs;
+        quote! {
+            let mut attempts: u32 = 0;
+            let max_attempts: u32 = #max_attempts;
+            let backoff = std::time::Duration::from_secs(#backoff_secs);
+
+            let result = loop {
+                attempts += 1;
+                match #call_expr {
+                    Ok(value) => break Ok(value),
+                    Err(e) if attempts < max_attempts => {
+                        tokio::time::sleep(backoff * attempts).await;
+                        continue;
+                    }
+                    Err(e) => {
+                        ctx.record_failure(task_id, &e.to_string()).await?;
+                        ctx.emit(adk_graph::stream::StreamEvent::error(
+                            &e.to_string(),
+                            Some(task_id),
+                        ));
+                        break Err(e);
+                    }
+                }
+            };
+        }
+    } else {
+        quote! {
+            let result = match #call_expr {
+                Ok(value) => Ok(value),
+                Err(e) => {
+                    ctx.record_failure(task_id, &e.to_string()).await?;
+                    ctx.emit(adk_graph::stream::StreamEvent::error(
+                        &e.to_string(),
+                        Some(task_id),
+                    ));
+                    Err(e)
+                }
+            };
+        }
+    };
+
+    let output = quote! {
+        // Preserve the original function for direct testing
+        #input_fn
+
+        /// Auto-generated task wrapper for [`#fn_name`].
+        ///
+        /// Wraps the original function with:
+        /// - Resume-skip logic (checks `ExecutionLog` for cached results)
+        /// - `StreamEvent::node_start` / `StreamEvent::node_end` emission
+        /// - Retry logic (if configured)
+        /// - `record_completion()` on success
+        /// - `record_failure()` after all retries exhausted
+        #fn_vis async fn #wrapper_name(#params) #return_type {
+            let task_id = #fn_name_str;
+
+            // Check if already completed (resume path)
+            if let Some(cached_result) = ctx.get_cached_result(task_id).await {
+                return Ok(cached_result);
+            }
+
+            // Emit task start event
+            let current_step = ctx.current_step().await;
+            ctx.emit(adk_graph::stream::StreamEvent::node_start(task_id, current_step));
+
+            let start = std::time::Instant::now();
+
+            #execution_body
+
+            if let Ok(ref value) = result {
+                // Record completion and checkpoint
+                ctx.record_completion(task_id, value).await?;
+                let duration = start.elapsed().as_millis() as u64;
+                let step = ctx.current_step().await;
+                ctx.emit(adk_graph::stream::StreamEvent::node_end(task_id, step, duration));
+            }
+
+            result
+        }
+    };
+
+    output.into()
+}
+
+// ─── Task Attribute Parsing ────────────────────────────────────────────────────
+
+/// Parsed retry configuration from `#[task(retry(max_attempts = N, backoff = "Xs"))]`.
+struct RetryConfig {
+    max_attempts: u32,
+    backoff_secs: u64,
+}
+
+/// Parsed attributes from `#[task(...)]`.
+struct TaskAttrs {
+    retry: Option<RetryConfig>,
+}
+
+/// Parse task attributes from the attribute token stream.
+///
+/// Supports:
+/// - `#[task]` — no retry
+/// - `#[task(retry(max_attempts = 3, backoff = "1s"))]` — with retry
+fn parse_task_attrs(attr: TokenStream) -> TaskAttrs {
+    if attr.is_empty() {
+        return TaskAttrs { retry: None };
+    }
+
+    // Parse the attribute as a Meta list
+    let attr_meta: syn::Result<syn::Meta> = syn::parse(attr.clone());
+    if let Ok(syn::Meta::List(meta_list)) = attr_meta {
+        if meta_list.path.is_ident("retry") {
+            if let Some(retry) = parse_retry_from_meta_list(&meta_list) {
+                return TaskAttrs { retry: Some(retry) };
+            }
+        }
+    }
+
+    // Try parsing as just the inner content of task(...)
+    // e.g., the attr stream is: `retry(max_attempts = 3, backoff = "1s")`
+    let attr2: proc_macro2::TokenStream = attr.into();
+    let parsed: syn::Result<TaskAttrContent> = syn::parse2(attr2);
+    if let Ok(content) = parsed {
+        return TaskAttrs { retry: content.retry };
+    }
+
+    TaskAttrs { retry: None }
+}
+
+/// Inner content parsed from `#[task(retry(...))]`.
+struct TaskAttrContent {
+    retry: Option<RetryConfig>,
+}
+
+impl syn::parse::Parse for TaskAttrContent {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let ident: syn::Ident = input.parse()?;
+        if ident != "retry" {
+            return Ok(TaskAttrContent { retry: None });
+        }
+
+        let content;
+        syn::parenthesized!(content in input);
+
+        let mut max_attempts: u32 = 3;
+        let mut backoff_secs: u64 = 1;
+
+        // Parse key = value pairs separated by commas
+        let pairs = syn::punctuated::Punctuated::<syn::MetaNameValue, syn::Token![,]>::parse_terminated(&content)?;
+
+        for pair in pairs {
+            if pair.path.is_ident("max_attempts") {
+                if let syn::Expr::Lit(expr_lit) = &pair.value {
+                    if let syn::Lit::Int(lit_int) = &expr_lit.lit {
+                        max_attempts = lit_int.base10_parse().unwrap_or(3);
+                    }
+                }
+            } else if pair.path.is_ident("backoff") {
+                if let syn::Expr::Lit(expr_lit) = &pair.value {
+                    if let syn::Lit::Str(lit_str) = &expr_lit.lit {
+                        backoff_secs = parse_duration_str(&lit_str.value());
+                    }
+                }
+            }
+        }
+
+        Ok(TaskAttrContent {
+            retry: Some(RetryConfig { max_attempts, backoff_secs }),
+        })
+    }
+}
+
+/// Parse retry config from a `Meta::List` (e.g., `retry(max_attempts = 3, backoff = "1s")`).
+fn parse_retry_from_meta_list(meta_list: &syn::MetaList) -> Option<RetryConfig> {
+    let mut max_attempts: u32 = 3;
+    let mut backoff_secs: u64 = 1;
+
+    let pairs: syn::Result<syn::punctuated::Punctuated<syn::MetaNameValue, syn::Token![,]>> =
+        meta_list.parse_args_with(syn::punctuated::Punctuated::parse_terminated);
+
+    if let Ok(pairs) = pairs {
+        for pair in pairs {
+            if pair.path.is_ident("max_attempts") {
+                if let syn::Expr::Lit(expr_lit) = &pair.value {
+                    if let syn::Lit::Int(lit_int) = &expr_lit.lit {
+                        max_attempts = lit_int.base10_parse().unwrap_or(3);
+                    }
+                }
+            } else if pair.path.is_ident("backoff") {
+                if let syn::Expr::Lit(expr_lit) = &pair.value {
+                    if let syn::Lit::Str(lit_str) = &expr_lit.lit {
+                        backoff_secs = parse_duration_str(&lit_str.value());
+                    }
+                }
+            }
+        }
+        Some(RetryConfig { max_attempts, backoff_secs })
+    } else {
+        None
+    }
+}
+
+/// Parse a duration string like "1s", "500ms", "2s" into seconds.
+/// Defaults to 1 second if parsing fails.
+fn parse_duration_str(s: &str) -> u64 {
+    let s = s.trim();
+    // Check "ms" suffix first (before "s" since "ms" ends with 's')
+    if let Some(ms) = s.strip_suffix("ms") {
+        return ms.parse::<u64>().ok().map(|v| v / 1000).unwrap_or(1);
+    }
+    if let Some(secs) = s.strip_suffix('s') {
+        return secs.parse::<u64>().unwrap_or(1);
+    }
+    // Try parsing as plain number (assume seconds)
+    s.parse::<u64>().unwrap_or(1)
+}

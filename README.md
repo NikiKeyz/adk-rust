@@ -679,6 +679,8 @@ let result = agent.invoke(input, ExecutionConfig::new("thread-1")).await?;
 - **Checkpointing**: Memory and SQLite backends for fault tolerance, durable resume from checkpoint after crash
 - **Human-in-the-Loop**: Dynamic interrupts based on state, resume from checkpoint
 - **Streaming**: Multiple modes (values, updates, messages, debug)
+- **Functional API**: Write workflows as async functions with `#[entrypoint]`/`#[task]` macros, automatic checkpointing, typed reducers
+- **Background Runs & Cron**: REST endpoints for async execution and time-based scheduling
 
 **Run validated graph examples**:
 ```bash

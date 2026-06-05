@@ -74,14 +74,21 @@ adk-tool/        Tool system: FunctionTool, StatefulTool, SimpleToolContext, MCP
 adk-runner/      Agent execution runtime with event streaming, RunnerConfigBuilder (typestate),
                  Runner::interrupt() API, Runner::run_str(), per-session cancellation tokens
 adk-server/      HTTP server (Axum) and A2A v1.0.0 (Agent-to-Agent) protocol, ServerBuilder
-                 API, ShutdownHandle, YAML agent config, agent registry, auth bridge
+                 API, ShutdownHandle, YAML agent config, agent registry, auth bridge.
+                 Background Runs and Cron Scheduling (`background` feature): REST endpoints
+                 for async workflow execution (POST/GET/DELETE /runs), cron job management
+                 (POST/GET/PATCH/DELETE /cron), concurrency policies (skip/allow/queue).
 adk-session/     Session management: SQLite, PostgreSQL, Redis, MongoDB, Firestore, Neo4j
                  backends. Encrypted sessions (AES-256-GCM) with key rotation.
 adk-artifact/    Binary artifact storage for agents
 adk-memory/      Semantic memory and RAG search: InMemory, SQLite, PostgreSQL, Redis, MongoDB,
                  Neo4j backends. Project-scoped memory isolation.
 adk-graph/       Graph-based workflow orchestration with checkpoints, durable resume,
-                 HITL interrupts, ActionNodeExecutor, WorkflowSchema interchange
+                 HITL interrupts, ActionNodeExecutor, WorkflowSchema interchange.
+                 Functional API (`functional` feature): write workflows as async functions
+                 with #[entrypoint]/#[task] macros, automatic checkpointing, typed state
+                 reducers (ReducedValue, UntrackedValue, MessagesValue), state schema
+                 validation, interrupt/resume, and loop iteration checkpoint keying.
 adk-realtime/    Real-time bidirectional audio/video streaming (OpenAI, Gemini Live, Vertex AI Live,
                  LiveKit, WebRTC), mid-session context mutation, interruption detection,
                  video avatar providers (HeyGen, D-ID)

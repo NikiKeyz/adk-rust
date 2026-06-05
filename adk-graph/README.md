@@ -22,6 +22,10 @@ Graph-based workflow orchestration for Rust Agent Development Kit (ADK-Rust) age
 - **Human-in-the-Loop**: Interrupt before/after nodes, dynamic interrupts
 - **Streaming**: Multiple stream modes (values, updates, messages, debug)
 - **ADK Integration**: Full callback support, works with existing runners
+- **Functional API** (feature: `functional`): Write workflows as async functions with automatic checkpointing
+- **Typed State Reducers**: ReducedValue, UntrackedValue, MessagesValue containers
+- **State Schema Validation**: Type-level validation at workflow boundaries
+- **Proc Macros**: `#[entrypoint]` and `#[task]` for zero-boilerplate workflow definition
 
 ## Architecture
 
@@ -489,11 +493,73 @@ cargo run --example graph_checkpoint
 | Flag | Description |
 |------|-------------|
 | `sqlite` | Enable SQLite checkpointer |
+| `functional` | Functional API: TaskContext, typed reducers, schema validation, proc macros |
 | `full` | Enable all features |
 
 ## License
 
 Apache-2.0
+
+## Functional API
+
+The Functional API (feature: `functional`) provides a higher-level programming model that lets you write agent workflows as normal async Rust functions with automatic checkpointing, typed state reducers, and interrupt/resume support.
+
+### Quick Start
+
+```toml
+[dependencies]
+adk-graph = { version = "0.10.0", features = ["functional"] }
+```
+
+```rust
+use std::sync::Arc;
+use adk_graph::checkpoint::MemoryCheckpointer;
+use adk_graph::functional::{TaskContext, ReducedValue, MessagesValue, ExecutionLog};
+use adk_graph::state::StateSchema;
+
+// Create a TaskContext with a checkpointer
+let checkpointer = Arc::new(MemoryCheckpointer::new());
+let schema = StateSchema::builder()
+    .channel("status")
+    .list_channel("results")
+    .build();
+
+// ReducedValue — append-only accumulator
+let mut results: ReducedValue<String> = ReducedValue::new();
+results.push("step 1 complete".to_string());
+results.push("step 2 complete".to_string());
+assert_eq!(results.len(), 2);
+
+// MessagesValue — chat messages with deduplication
+let mut messages = MessagesValue::new();
+// Duplicate IDs are replaced (upsert semantics)
+
+// ExecutionLog — resume-skip behavior
+let mut log = ExecutionLog::new();
+log.record_start("fetch_data");
+log.record_completion("fetch_data", serde_json::json!({"ok": true}));
+assert!(log.is_completed("fetch_data")); // Skip on resume
+```
+
+### Features
+
+| Type | Purpose |
+|------|---------|
+| `TaskContext` | Runtime context for tasks (state, checkpointing, streaming, interrupts) |
+| `ReducedValue<T>` | Append-only accumulator persisted across checkpoints |
+| `UntrackedValue<T>` | Transient data excluded from checkpoints |
+| `MessagesValue` | Chat messages with ID-based deduplication |
+| `StateSchemaValidator` | Type validation for state and task output |
+| `ExecutionLog` | Task completion tracking for resume-skip |
+| `TypedReducer` | Custom merge strategies (Replace, Append, Merge) |
+
+### Examples
+
+```bash
+cargo run --manifest-path examples/functional_workflow/Cargo.toml
+cargo run --manifest-path examples/background_runs/Cargo.toml
+cargo run --manifest-path examples/cron_scheduling/Cargo.toml
+```
 
 ## Part of ADK-Rust
 

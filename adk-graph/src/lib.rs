@@ -20,6 +20,10 @@
 //! - **Human-in-the-Loop**: Interrupt before/after nodes, dynamic interrupts
 //! - **Streaming**: Multiple stream modes (values, updates, messages, debug)
 //! - **ADK Integration**: Full callback support, works with existing runners
+//! - **Functional API** (`functional` feature): Write workflows as async functions
+//!   with `#[entrypoint]`/`#[task]` macros, automatic checkpointing, typed state
+//!   reducers ([`ReducedValue`], [`UntrackedValue`], [`MessagesValue`]), state schema
+//!   validation, interrupt/resume, and loop iteration checkpoint keying
 //!
 //! ## Quick Start
 //!
@@ -91,6 +95,18 @@ pub mod time_travel;
 pub mod action;
 #[cfg(feature = "action")]
 pub mod workflow;
+
+#[cfg(feature = "functional")]
+pub mod functional;
+
+// Functional API re-exports for convenient access
+#[cfg(feature = "functional")]
+pub use functional::{
+    AppendReducer, ExecutionLog, FunctionalError, MergeReducer, MessagesValue, ReducedValue,
+    ReplaceReducer, TaskContext, TypedReducer, UntrackedValue,
+};
+#[cfg(feature = "functional")]
+pub use functional::schema::{ExpectedType, StateSchemaValidator};
 
 // Re-exports
 pub use agent::{GraphAgent, GraphAgentBuilder};

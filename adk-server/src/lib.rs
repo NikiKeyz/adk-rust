@@ -76,6 +76,23 @@ pub mod registry;
 #[cfg(feature = "openai-webhooks")]
 pub mod webhooks;
 
+#[cfg(feature = "background")]
+pub mod background;
+
+// Background runs and cron scheduling re-exports
+#[cfg(feature = "background")]
+pub use background::{
+    BackgroundRun, BackgroundRunner, BackgroundState, RunStatus, RunStatusResponse, RunStore,
+    SubmitRunRequest, SubmitRunResponse, WorkflowState, background_runs_router,
+    background_runs_router_with_state,
+};
+#[cfg(feature = "background")]
+pub use background::{
+    ConcurrencyPolicy, CronJob, CronJobResponse, CronJobStatus, CronState,
+    CreateCronJobRequest, cron_jobs_router, cron_jobs_router_with_state, start_cron_scheduler,
+    validate_cron_expression,
+};
+
 pub use a2a::{
     A2aClient, Executor, ExecutorConfig, RemoteA2aAgent, RemoteA2aAgentBuilder, RemoteA2aConfig,
     build_agent_card, build_agent_skills,

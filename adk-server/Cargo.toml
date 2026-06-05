@@ -52,6 +52,9 @@ hmac = { version = "0.12", optional = true }
 sha2 = { workspace = true, optional = true }
 hex = { workspace = true, optional = true }
 
+# Optional: background run and cron scheduling
+cron = { version = "0.15", optional = true }
+
 [features]
 default = []
 a2a-v1 = ["dep:a2a-protocol-types"]
@@ -63,6 +66,8 @@ agent-registry = []
 a2a-interceptors = []
 # Enable OpenAI webhook handler for background task completion events
 openai-webhooks = ["dep:hmac", "dep:sha2", "dep:hex"]
+# Enable background run endpoints and cron job management
+background = ["dep:cron"]
 
 [dev-dependencies]
 async-stream.workspace = true
