@@ -360,6 +360,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "adk-enterprise"
+version = "0.10.0"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "base64 0.22.1",
+ "bytes",
+ "chrono",
+ "futures",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "uuid 1.23.1",
+ "wiremock",
+]
+
+[[package]]
 name = "adk-eval"
 version = "0.10.0"
 dependencies = [
@@ -454,6 +474,35 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "adk-managed"
+version = "0.10.0"
+dependencies = [
+ "adk-agent",
+ "adk-core",
+ "adk-memory",
+ "adk-model",
+ "adk-runner",
+ "adk-sandbox",
+ "adk-session",
+ "adk-skill",
+ "adk-telemetry",
+ "adk-tool",
+ "async-stream",
+ "async-trait",
+ "chrono",
+ "futures",
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "uuid 1.23.1",
 ]
 
 [[package]]
@@ -693,9 +742,11 @@ dependencies = [
  "adk-cli",
  "adk-code",
  "adk-core",
+ "adk-enterprise",
  "adk-eval",
  "adk-graph",
  "adk-guardrail",
+ "adk-managed",
  "adk-memory",
  "adk-model",
  "adk-payments",

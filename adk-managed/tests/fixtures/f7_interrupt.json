@@ -1,0 +1,31 @@
+{
+  "name": "F-7: Interrupt Mid-Turn",
+  "description": "User sends an interrupt after a message. The message turn completes (instant with stub runner), then the interrupt causes the loop to exit with a final status.idle.",
+  "agent_def": {
+    "name": "interrupt-agent",
+    "model": "gemini-2.5-flash",
+    "system": "You are a helpful assistant."
+  },
+  "scripted_model": {
+    "turns": [
+      {
+        "text": "Processing your request...",
+        "tool_calls": []
+      }
+    ]
+  },
+  "scenario": [
+    {
+      "type": "user.message",
+      "content": [{"type": "text", "text": "Start processing"}]
+    },
+    {
+      "type": "user.interrupt"
+    }
+  ],
+  "assertions": {
+    "exact_sequence": ["status.running", "agent.message", "status.idle", "status.idle"],
+    "must_contain": ["status.idle"],
+    "must_end_with": ["status.idle"]
+  }
+}

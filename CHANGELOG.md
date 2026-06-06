@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **adk-enterprise** — Native Rust SDK for the ADK-Rust Enterprise Managed Agent Service. Lightweight HTTP/SSE client with zero adk-* runtime dependencies. Supports any model (Gemini, OpenAI, Anthropic, DeepSeek, Ollama), auto-reconnect SSE streaming, automatic retry with exponential backoff, idempotency keys, and self-hosted deployments. (Experimental)
+
 - **adk-graph: Functional API** (feature: `functional`) — Write agent workflows as
   normal async Rust functions with automatic checkpointing, typed state reducers,
   and interrupt/resume support. Includes:
@@ -59,6 +61,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Open Responses compatibility (`openai_open_responses`).
 - **adk-anthropic: Claude Opus 4.8 support** — added `claude-opus-4-8` as the
   latest flagship model. Adaptive thinking only (same as Opus 4.7).
+- **adk-managed: Managed Agent Runtime** (feature: `managed-runtime`) — New crate
+  providing a provider-neutral, durable, resumable agent execution engine. The
+  runtime takes a declarative `ManagedAgentDef`, builds a runnable agent, and
+  operates it as a checkpoint-resumable, event-streaming background session.
+  Key capabilities:
+  - `ManagedAgentRuntime` trait and `DefaultManagedAgentRuntime` implementation
+  - Durable sessions: checkpoint after every event, resume from last consistent state
+  - Provider-neutral event stream (`SessionEvent`) — identical sequences across
+    Gemini, OpenAI, Anthropic, Ollama, and OpenAI-compatible providers
+  - Custom tool parking with configurable timeout
+  - Event replay (`stream_events(from_seq)`) for SSE reconnection
+  - `ScriptedLlm` test double for deterministic offline testing ($0)
+  - Golden fixture conformance tests (F-1 through F-8)
+  - STABILITY: Experimental, additive, feature-gated behind `managed-runtime`
 - **adk-anthropic: Managed Agents API client** — full implementation of the
   Anthropic Managed Agents API, feature-gated behind `managed-agents`. Includes:
   - Agent, Environment, Session CRUD with SSE streaming

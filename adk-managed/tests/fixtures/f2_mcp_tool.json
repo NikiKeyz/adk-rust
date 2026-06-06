@@ -1,0 +1,46 @@
+{
+  "name": "F-2: MCP Tool Call",
+  "description": "Agent invokes an MCP tool. Validates the status.running → agent.mcp_tool_use → agent.message → status.idle pattern.",
+  "agent_def": {
+    "name": "mcp-agent",
+    "model": "gemini-2.5-flash",
+    "system": "You are an assistant with access to a file reader MCP tool.",
+    "mcp_servers": [
+      {
+        "name": "file-reader",
+        "transport": "stdio",
+        "command": "file-reader-server",
+        "args": []
+      }
+    ]
+  },
+  "scripted_model": {
+    "turns": [
+      {
+        "text": null,
+        "tool_calls": [
+          {
+            "name": "read_file",
+            "input": {"path": "/tmp/data.txt"},
+            "id": "mcp_tc_001"
+          }
+        ]
+      },
+      {
+        "text": "The file contains: Hello from MCP!",
+        "tool_calls": []
+      }
+    ]
+  },
+  "scenario": [
+    {
+      "type": "user.message",
+      "content": [{"type": "text", "text": "Read the file /tmp/data.txt"}]
+    }
+  ],
+  "assertions": {
+    "exact_sequence": ["status.running", "agent.mcp_tool_use", "agent.message", "status.idle"],
+    "must_contain": ["agent.mcp_tool_use", "agent.message"],
+    "must_end_with": ["status.idle"]
+  }
+}

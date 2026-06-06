@@ -975,6 +975,55 @@ pub mod avatar {
 }
 
 // ============================================================================
+// Managed Agent Runtime (feature-gated, experimental)
+// ============================================================================
+
+/// Managed agent runtime — durable, resumable, provider-neutral agent execution.
+///
+/// Provides the `ManagedAgentRuntime` trait and `DefaultManagedAgentRuntime`:
+/// - [`ManagedAgentRuntime`](managed::ManagedAgentRuntime) - Central lifecycle trait
+/// - [`DefaultManagedAgentRuntime`](managed::DefaultManagedAgentRuntime) - Default implementation
+/// - [`ManagedAgentDef`](managed::types::ManagedAgentDef) - Declarative agent definition
+/// - [`SessionEvent`](managed::types::SessionEvent) - Provider-neutral event stream
+/// - [`UserEvent`](managed::types::UserEvent) - Client-to-agent events
+/// - [`ModelResolver`](managed::ModelResolver) - ModelRef → Arc<dyn Llm> resolution
+/// - [`ScriptedLlm`](managed::ScriptedLlm) - Deterministic testing double
+///
+/// STABILITY: Experimental, additive, feature-gated. No breaking changes to
+/// existing `Runner`/`LlmAgent` APIs when this feature is disabled.
+///
+/// Available with feature: `managed-runtime`
+#[cfg(feature = "managed-runtime")]
+#[cfg_attr(docsrs, doc(cfg(feature = "managed-runtime")))]
+pub mod managed {
+    pub use adk_managed::*;
+}
+
+// ============================================================================
+// Enterprise Client SDK (feature-gated, experimental)
+// ============================================================================
+
+/// Enterprise client SDK — native Rust client for the ADK-Rust Enterprise
+/// Managed Agent Service.
+///
+/// Provides `EnterpriseClient` for interacting with the platform over HTTP/SSE:
+/// - [`EnterpriseClient`](enterprise::EnterpriseClient) - Primary API client
+/// - [`ClientConfig`](enterprise::ClientConfig) - Client configuration
+/// - Agent, Environment, and Session CRUD
+/// - SSE event streaming with auto-reconnect
+/// - Vault and Memory management (beta)
+///
+/// This crate has zero dependency on `adk-model`, `adk-runner`, or `adk-agent` —
+/// it communicates exclusively via HTTP with the managed agent platform.
+///
+/// STABILITY: Experimental, additive, feature-gated.
+///
+/// Available with feature: `enterprise-client`
+#[cfg(feature = "enterprise-client")]
+#[cfg_attr(docsrs, doc(cfg(feature = "enterprise-client")))]
+pub use adk_enterprise;
+
+// ============================================================================
 // Convenience Functions
 // ============================================================================
 

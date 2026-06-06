@@ -1,0 +1,55 @@
+{
+  "name": "F-4: Tool Confirmation",
+  "description": "Agent invokes a tool requiring confirmation. Loop parks until user approves, then tool executes. Validates the confirmation flow.",
+  "agent_def": {
+    "name": "confirmation-agent",
+    "model": "gemini-2.5-flash",
+    "system": "You have access to a delete_file tool that requires confirmation.",
+    "tools": [
+      {
+        "type": "builtin",
+        "name": "delete_file"
+      }
+    ],
+    "permission_policy": {
+      "default": "auto_approve",
+      "tools": {
+        "delete_file": "prompt"
+      }
+    }
+  },
+  "scripted_model": {
+    "turns": [
+      {
+        "text": null,
+        "tool_calls": [
+          {
+            "name": "delete_file",
+            "input": {"path": "/tmp/old_data.csv"},
+            "id": "tu_delete_001"
+          }
+        ]
+      },
+      {
+        "text": "Done. The file /tmp/old_data.csv has been deleted.",
+        "tool_calls": []
+      }
+    ]
+  },
+  "scenario": [
+    {
+      "type": "user.message",
+      "content": [{"type": "text", "text": "Delete /tmp/old_data.csv"}]
+    },
+    {
+      "type": "user.tool_confirmation",
+      "tool_use_id": "tu_delete_001",
+      "result": "allow"
+    }
+  ],
+  "assertions": {
+    "exact_sequence": ["status.running", "agent.tool_use", "agent.message", "status.idle"],
+    "must_contain": ["agent.tool_use", "agent.message"],
+    "must_end_with": ["status.idle"]
+  }
+}
