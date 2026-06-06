@@ -104,6 +104,9 @@ acp = ["dep:adk-acp"]
 # Managed agent runtime (feature-gated, experimental)
 managed-runtime = ["dep:adk-managed"]
 
+# Enterprise client SDK (feature-gated, experimental)
+enterprise-client = ["dep:adk-enterprise"]
+
 # A2A protocol feature (forwarded to adk-server)
 a2a = ["server", "adk-server/a2a-v1"]
 
@@ -241,6 +244,7 @@ adk-anthropic = { workspace = true, optional = true }
 adk-awp = { workspace = true, optional = true }
 adk-acp = { workspace = true, optional = true }
 adk-managed = { workspace = true, optional = true }
+adk-enterprise = { workspace = true, optional = true }
 
 # Re-export common dependencies
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "sync", "time", "macros", "net", "signal", "fs", "process", "io-util"] }

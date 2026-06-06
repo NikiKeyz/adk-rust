@@ -1,0 +1,36 @@
+{
+  "name": "F-5: Resume After Kill",
+  "description": "Session is killed mid-execution and resumed from checkpoint. Validates that post-resume seq > pre-crash seq with no gaps or duplicates.",
+  "agent_def": {
+    "name": "resume-agent",
+    "model": "gemini-2.5-flash",
+    "system": "You are a helpful assistant."
+  },
+  "scripted_model": {
+    "turns": [
+      {
+        "text": "Starting long operation...",
+        "tool_calls": []
+      },
+      {
+        "text": "Resumed! Continuing from where I left off.",
+        "tool_calls": []
+      }
+    ]
+  },
+  "scenario": [
+    {
+      "type": "user.message",
+      "content": [{"type": "text", "text": "Start a long operation"}]
+    },
+    {
+      "type": "user.message",
+      "content": [{"type": "text", "text": "Continue after resume"}]
+    }
+  ],
+  "assertions": {
+    "exact_sequence": ["status.running", "agent.message", "status.idle", "status.running", "agent.message", "status.idle"],
+    "must_contain": ["agent.message"],
+    "must_end_with": ["status.idle"]
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "name": "F-3: Custom Tool (Park and Deliver)",
+  "description": "Agent invokes a custom tool, loop parks until client delivers result, then agent uses the result. Validates the park-deliver-resume flow.",
+  "agent_def": {
+    "name": "custom-tool-agent",
+    "model": "gemini-2.5-flash",
+    "system": "You have access to a deploy tool. Use it when asked to deploy.",
+    "tools": [
+      {
+        "type": "custom",
+        "name": "deploy",
+        "description": "Deploy the application to production",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "target": {"type": "string"}
+          },
+          "required": ["target"]
+        }
+      }
+    ]
+  },
+  "scripted_model": {
+    "turns": [
+      {
+        "text": null,
+        "tool_calls": [
+          {
+            "name": "deploy",
+            "input": {"target": "production"},
+            "id": "ctu_deploy_001"
+          }
+        ]
+      },
+      {
+        "text": "Deployment to production completed successfully!",
+        "tool_calls": []
+      }
+    ]
+  },
+  "scenario": [
+    {
+      "type": "user.message",
+      "content": [{"type": "text", "text": "Deploy to production"}]
+    },
+    {
+      "type": "user.custom_tool_result",
+      "custom_tool_use_id": "ctu_deploy_001",
+      "content": [{"type": "text", "text": "Deployed v2.1.0 to production at 2024-01-15T10:30:00Z"}]
+    }
+  ],
+  "assertions": {
+    "exact_sequence": ["status.running", "agent.custom_tool_use", "agent.message", "status.idle"],
+    "must_contain": ["agent.custom_tool_use", "agent.message"],
+    "must_end_with": ["status.idle"]
+  }
+}

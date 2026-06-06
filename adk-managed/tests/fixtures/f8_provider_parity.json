@@ -1,0 +1,48 @@
+{
+  "name": "F-8: Provider Parity",
+  "description": "Same agent definition produces identical event-type sequences regardless of provider. The PRIMARY correctness gate for provider neutrality.",
+  "agent_def": {
+    "name": "parity-agent",
+    "model": "gemini-2.5-flash",
+    "system": "You are a helpful assistant with a search tool.",
+    "tools": [
+      {
+        "type": "builtin",
+        "name": "web_search"
+      }
+    ]
+  },
+  "scripted_model": {
+    "turns": [
+      {
+        "text": null,
+        "tool_calls": [
+          {
+            "name": "web_search",
+            "input": {"query": "ADK Rust latest version"},
+            "id": "tu_parity_001"
+          }
+        ]
+      },
+      {
+        "text": "Based on my search, the latest ADK Rust version is 0.10.0.",
+        "tool_calls": []
+      }
+    ]
+  },
+  "scenario": [
+    {
+      "type": "user.message",
+      "content": [{"type": "text", "text": "What is the latest version of ADK Rust?"}]
+    }
+  ],
+  "assertions": {
+    "exact_sequence": ["status.running", "agent.tool_use", "agent.message", "status.idle"],
+    "must_contain": ["agent.tool_use", "agent.message"],
+    "must_end_with": ["status.idle"]
+  },
+  "provider_parity": {
+    "providers": ["gemini", "openai", "anthropic", "ollama", "openai_compatible"],
+    "note": "All providers MUST produce the exact same event-type sequence. This fixture is run once per provider with the same ScriptedLlm turns — the runtime event mapping layer normalizes provider differences."
+  }
+}

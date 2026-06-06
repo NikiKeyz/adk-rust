@@ -1,0 +1,50 @@
+[package]
+name = "adk-managed"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Managed agent runtime for ADK-Rust — durable, resumable, provider-neutral agent execution"
+repository = "https://github.com/zavora-ai/adk-rust"
+documentation = "https://docs.rs/adk-managed"
+readme = "README.md"
+keywords = ["ai", "agents", "managed", "runtime", "durable"]
+categories = ["science", "asynchronous"]
+
+[dependencies]
+adk-core.workspace = true
+adk-agent = { workspace = true }
+adk-model = { workspace = true }
+adk-runner = { workspace = true }
+adk-session.workspace = true
+adk-tool.workspace = true
+adk-skill.workspace = true
+adk-telemetry.workspace = true
+
+# Optional dependencies
+adk-sandbox = { workspace = true, optional = true }
+adk-memory = { workspace = true, optional = true }
+
+async-trait.workspace = true
+async-stream.workspace = true
+futures.workspace = true
+tokio = { workspace = true, features = ["sync", "time", "macros", "rt"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+tokio-stream = { workspace = true, features = ["sync"] }
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[features]
+default = []
+sandbox = ["dep:adk-sandbox"]
+memory = ["dep:adk-memory"]
+full = ["sandbox", "memory"]
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros", "test-util"] }
+proptest = "1.5"

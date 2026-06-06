@@ -50,6 +50,8 @@ The table below assigns one stability tier to every public `adk-*` crate in the 
 | `adk-sandbox` | **Beta** | Sandboxed execution environments |
 | `adk-audio` | **Beta** | Audio processing and STT/TTS providers |
 | `adk-mistralrs` | **Beta** | Native local LLM inference via mistral.rs |
+| `adk-enterprise` | **Experimental** | Enterprise client SDK for ADK-Rust Managed Agent Service |
+| `adk-managed` | **Experimental** | Managed agent runtime engine |
 
 ### Excluded from Workspace
 

@@ -1,0 +1,17 @@
+[package]
+name = "managed-runtime-hello"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Smoke test for the managed agent runtime — runs fixture F-1 end-to-end with a scripted LLM (no API key required)"
+
+[workspace]
+
+[dependencies]
+adk-managed = { path = "../../adk-managed" }
+adk-session = { path = "../../adk-session" }
+adk-core = { path = "../../adk-core" }
+async-trait = "0.1"
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+serde_json = "1"

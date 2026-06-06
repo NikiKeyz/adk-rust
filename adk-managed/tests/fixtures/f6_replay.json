@@ -1,0 +1,36 @@
+{
+  "name": "F-6: Replay from_seq",
+  "description": "Client connects with from_seq, receives historical events first then live events. Validates event replay completeness.",
+  "agent_def": {
+    "name": "replay-agent",
+    "model": "gemini-2.5-flash",
+    "system": "You are a helpful assistant."
+  },
+  "scripted_model": {
+    "turns": [
+      {
+        "text": "First response",
+        "tool_calls": []
+      },
+      {
+        "text": "Second response",
+        "tool_calls": []
+      }
+    ]
+  },
+  "scenario": [
+    {
+      "type": "user.message",
+      "content": [{"type": "text", "text": "First message"}]
+    },
+    {
+      "type": "user.message",
+      "content": [{"type": "text", "text": "Second message"}]
+    }
+  ],
+  "assertions": {
+    "exact_sequence": ["status.running", "agent.message", "status.idle", "status.running", "agent.message", "status.idle"],
+    "must_contain": ["agent.message"],
+    "must_end_with": ["status.idle"]
+  }
+}

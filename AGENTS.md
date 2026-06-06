@@ -115,6 +115,9 @@ adk-audio/       Audio processing, STT/TTS providers, Deepgram streaming, deskto
 adk-rag/         Retrieval-augmented generation pipelines
 adk-action/      Action node definitions (14 node types), StandardProperties, variable
                  interpolation — shared types for adk-graph ActionNodeExecutor
+adk-enterprise/  Enterprise client SDK — lightweight HTTP/SSE client for the ADK-Rust Enterprise
+                 Managed Agent Service. Zero adk-* runtime dependencies. Agents, sessions,
+                 streaming, vaults, memory. Self-hosted support. EXPERIMENTAL.
 adk-managed/     Managed agent runtime — provider-neutral, durable, resumable agent execution
                  engine. ManagedAgentRuntime trait, DefaultManagedAgentRuntime, declarative
                  ManagedAgentDef, supervised session loop with checkpointing, custom tool

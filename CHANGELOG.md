@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **adk-enterprise** — Native Rust SDK for the ADK-Rust Enterprise Managed Agent Service. Lightweight HTTP/SSE client with zero adk-* runtime dependencies. Supports any model (Gemini, OpenAI, Anthropic, DeepSeek, Ollama), auto-reconnect SSE streaming, automatic retry with exponential backoff, idempotency keys, and self-hosted deployments. (Experimental)
+
 - **adk-graph: Functional API** (feature: `functional`) — Write agent workflows as
   normal async Rust functions with automatic checkpointing, typed state reducers,
   and interrupt/resume support. Includes:

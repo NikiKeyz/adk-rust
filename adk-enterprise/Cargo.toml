@@ -1,0 +1,33 @@
+[package]
+name = "adk-enterprise"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+description = "Native Rust SDK for ADK-Rust Enterprise Managed Agent Service"
+
+[dependencies]
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true, features = ["time", "sync", "macros", "rt"] }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+bytes = "1"
+async-stream = { workspace = true }
+base64 = "0.22"
+
+# NO dependency on adk-model, adk-runner, adk-agent, adk-session, or any heavy runtime crate.
+# This is intentionally lightweight — only HTTP + SSE.
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros"] }
+wiremock = "0.6"
+serde_json = { workspace = true }
