@@ -1,11 +1,42 @@
 use std::sync::Arc;
 
-use adk_core::{AdkError, Agent, Result};
+use adk_core::{AdkError, Agent, EventStream, Result};
 use futures::StreamExt;
 use tokio::sync::{Notify, RwLock};
 use tokio::task::JoinHandle;
 
 use super::event_source::EventSource;
+
+/// Callback invoked when the ambient agent's event source fires.
+///
+/// Receives the trigger event and the agent reference. The callback is responsible
+/// for creating an appropriate `InvocationContext` (e.g. via a Runner) and invoking
+/// the agent. Return the resulting event stream for the ambient agent to consume.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use std::sync::Arc;
+/// use adk_agent::ambient::{AmbientAgent, TriggerHandler};
+///
+/// let handler: TriggerHandler = Arc::new(move |event, agent| {
+///     let runner = runner.clone();
+///     Box::pin(async move {
+///         // Use the event payload as user content and run through a Runner
+///         let content = Content::new("user").with_text(&event.payload.to_string());
+///         runner.run("user".into(), "session".into(), content).await
+///     })
+/// });
+/// ```
+pub type TriggerHandler = Arc<
+    dyn Fn(
+            super::event_source::TriggerEvent,
+            Arc<dyn Agent>,
+        )
+            -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<EventStream>> + Send>>
+        + Send
+        + Sync,
+>;
 
 /// Lifecycle status of an [`AmbientAgent`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,6 +77,7 @@ pub enum AmbientAgentStatus {
 pub struct AmbientAgent {
     agent: Arc<dyn Agent>,
     source: Arc<dyn EventSource>,
+    trigger_handler: Option<TriggerHandler>,
     status: Arc<RwLock<AmbientAgentStatus>>,
     resume_notify: Arc<Notify>,
     handle: Option<JoinHandle<()>>,
@@ -59,10 +91,21 @@ impl AmbientAgent {
         Self {
             agent,
             source,
+            trigger_handler: None,
             status: Arc::new(RwLock::new(AmbientAgentStatus::Stopped)),
             resume_notify: Arc::new(Notify::new()),
             handle: None,
         }
+    }
+
+    /// Set a trigger handler that will be called when the event source fires.
+    ///
+    /// The handler receives the trigger event and agent, and should invoke the
+    /// agent via a Runner or other mechanism. Without a handler, the ambient
+    /// agent only logs trigger events.
+    pub fn with_trigger_handler(mut self, handler: TriggerHandler) -> Self {
+        self.trigger_handler = Some(handler);
+        self
     }
 
     /// Start listening for events and invoking the agent.
@@ -82,6 +125,7 @@ impl AmbientAgent {
         let status = Arc::clone(&self.status);
         let resume_notify = Arc::clone(&self.resume_notify);
         let agent = Arc::clone(&self.agent);
+        let trigger_handler = self.trigger_handler.clone();
 
         *self.status.write().await = AmbientAgentStatus::Running;
 
@@ -102,15 +146,44 @@ impl AmbientAgent {
                     }
                 }
 
-                // Process the event — log the trigger and note that agent invocation
-                // would happen here. Without a Runner reference, we can't fully invoke
-                // the agent, so we log the event details.
+                // Process the event — invoke the agent via the trigger handler
                 tracing::info!(
                     agent = agent.name(),
                     source = %event.source,
-                    "ambient agent triggered (agent invocation placeholder)"
+                    "ambient agent triggered"
                 );
                 tracing::debug!(payload = %event.payload, "trigger event payload");
+
+                if let Some(ref handler) = trigger_handler {
+                    match handler(event, agent.clone()).await {
+                        Ok(mut event_stream) => {
+                            // Consume the event stream, logging results
+                            while let Some(result) = event_stream.next().await {
+                                match result {
+                                    Ok(ev) => {
+                                        tracing::debug!(
+                                            author = %ev.author,
+                                            "ambient agent produced event"
+                                        );
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!(
+                                            error = %e,
+                                            "ambient agent invocation error"
+                                        );
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                error = %e,
+                                "ambient agent trigger handler failed"
+                            );
+                        }
+                    }
+                }
             }
         });
 

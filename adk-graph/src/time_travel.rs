@@ -118,9 +118,7 @@ pub struct StepInfo {
 /// handle.fork_at(1, "alternative_thread").await?;
 /// ```
 pub struct TimeTravelHandle<'g> {
-    /// Reference to the compiled graph for re-execution.
-    /// Used by `resume_from` and `replay` (implemented in tasks 8.3, 8.5).
-    #[allow(dead_code)]
+    /// Reference to the compiled graph for re-execution in `resume_from`.
     pub(crate) graph: &'g CompiledGraph,
     /// The thread identifier whose history is being navigated.
     pub(crate) thread_id: String,

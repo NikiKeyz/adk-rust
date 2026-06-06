@@ -283,9 +283,7 @@ impl GeminiPricing {
         let pricing = match model {
             Model::Gemini35Flash => Self::GEMINI_35_FLASH,
             Model::Gemini31ProPreview => Self::GEMINI_31_PRO_PREVIEW,
-            Model::Gemini31FlashLite | Model::Gemini31FlashLitePreview => {
-                Self::GEMINI_31_FLASH_LITE
-            }
+            Model::Gemini31FlashLite => Self::GEMINI_31_FLASH_LITE,
             Model::Gemini31FlashImage => Self::GEMINI_31_FLASH_IMAGE,
             Model::Gemini3FlashPreview => Self::GEMINI_3_FLASH_PREVIEW,
             Model::Gemini3ProImage | Model::Gemini3ProImagePreview => Self::GEMINI_3_PRO_IMAGE,
@@ -302,13 +300,8 @@ impl GeminiPricing {
             Model::Gemini25FlashLive122025 | Model::Gemini25FlashLive092025 => {
                 Self::GEMINI_25_FLASH_NATIVE_AUDIO
             }
-            Model::Gemini20Flash
-            | Model::Gemini20Flash001
-            | Model::Gemini20FlashExp
-            | Model::Gemini20FlashLite
-            | Model::Gemini20FlashLite001 => Self::GEMINI_20_FLASH,
             Model::GeminiEmbedding2 => Self::GEMINI_EMBEDDING_2,
-            Model::GeminiEmbedding001 | Model::TextEmbedding004 => Self::GEMINI_EMBEDDING,
+            Model::GeminiEmbedding001 => Self::GEMINI_EMBEDDING,
             // No published per-token text pricing (Pro Image preview text uses 3.1 Pro
             // rates; the dedicated Gemini 3 Pro Preview text model is discontinued).
             Model::Gemini3ProPreview => Self::GEMINI_31_PRO_PREVIEW,

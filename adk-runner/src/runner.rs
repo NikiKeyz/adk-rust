@@ -347,8 +347,8 @@ impl Runner {
             let selected_skill_id = String::new();
 
             #[cfg(feature = "skills")]
-            if let Some(injector) = skill_injector.as_ref() {
-                if let Some(matched) = adk_skill::apply_skill_injection(
+            if let Some(injector) = skill_injector.as_ref()
+                && let Some(matched) = adk_skill::apply_skill_injection(
                     &mut effective_user_content,
                     injector.index(),
                     injector.policy(),
@@ -357,7 +357,6 @@ impl Runner {
                     selected_skill_name = matched.skill.name;
                     selected_skill_id = matched.skill.id;
                 }
-            }
 
             let mut invocation_ctx = match InvocationContext::new_typed(
                 invocation_id.clone(),
@@ -531,15 +530,14 @@ impl Runner {
                                 old
                             };
 
-                            if let Some(old) = old_cache {
-                                if let Err(e) = cache_model.delete_cache(&old).await {
+                            if let Some(old) = old_cache
+                                && let Err(e) = cache_model.delete_cache(&old).await {
                                     tracing::warn!(
                                         old_cache = %old,
                                         error = %e,
                                         "failed to delete old cache, proceeding with new cache"
                                     );
                                 }
-                            }
                         }
                         Err(e) => {
                             tracing::warn!(
@@ -712,15 +710,14 @@ impl Runner {
             let mut transfer_target: Option<String> = None;
 
             while let Some(result) = {
-                if let Some(token) = cancellation_token.as_ref() {
-                    if token.is_cancelled() {
+                if let Some(token) = cancellation_token.as_ref()
+                    && token.is_cancelled() {
                         #[cfg(feature = "plugins")]
                         if let Some(manager) = plugin_manager.as_ref() {
                             manager.run_after_run(ctx.clone() as Arc<dyn adk_core::InvocationContext>).await;
                         }
                         return;
                     }
-                }
                 agent_stream.next().await
             } {
                 match result {
@@ -772,8 +769,8 @@ impl Runner {
                         // persisting each one would violate the primary key
                         // constraint. The final chunk (partial=false) carries the
                         // complete accumulated content.
-                        if !event.llm_response.partial {
-                            if let Err(e) = session_service.append_event(ctx.session_id(), event.clone()).await {
+                        if !event.llm_response.partial
+                            && let Err(e) = session_service.append_event(ctx.session_id(), event.clone()).await {
                                 #[cfg(feature = "plugins")]
                                 if let Some(manager) = plugin_manager.as_ref() {
                                     manager.run_after_run(ctx.clone() as Arc<dyn adk_core::InvocationContext>).await;
@@ -781,7 +778,6 @@ impl Runner {
                                 yield Err(e);
                                 return;
                             }
-                        }
                         yield Ok(event);
                     }
                     Err(e) => {
@@ -801,13 +797,14 @@ impl Runner {
             // target from the root agent tree, computes transfer_targets
             // (parent + peers) for the new agent, and runs it. This repeats
             // until no further transfer is requested or the depth limit is hit.
-            const MAX_TRANSFER_DEPTH: u32 = 10;
+            const DEFAULT_MAX_TRANSFER_DEPTH: u32 = 10;
+            let max_depth = run_config.max_transfer_depth.unwrap_or(DEFAULT_MAX_TRANSFER_DEPTH);
             let mut transfer_depth: u32 = 0;
             let mut current_transfer_target = transfer_target;
 
             while let Some(target_name) = current_transfer_target.take() {
                 transfer_depth += 1;
-                if transfer_depth > MAX_TRANSFER_DEPTH {
+                if transfer_depth > max_depth {
                     tracing::warn!(
                         depth = transfer_depth,
                         target = %target_name,
@@ -892,15 +889,14 @@ impl Runner {
 
                 // Stream events from the transferred agent, capturing any further transfer
                 while let Some(result) = {
-                    if let Some(token) = cancellation_token.as_ref() {
-                        if token.is_cancelled() {
+                    if let Some(token) = cancellation_token.as_ref()
+                        && token.is_cancelled() {
                             #[cfg(feature = "plugins")]
                             if let Some(manager) = plugin_manager.as_ref() {
                                 manager.run_after_run(ctx.clone() as Arc<dyn adk_core::InvocationContext>).await;
                             }
                             return;
                         }
-                    }
                     transfer_stream.next().await
                 } {
                     match result {
@@ -941,8 +937,8 @@ impl Runner {
                             // Add to mutable session
                             transfer_ctx.mutable_session().append_event(event.clone());
 
-                            if !event.llm_response.partial {
-                                if let Err(e) = session_service.append_event(ctx.session_id(), event.clone()).await {
+                            if !event.llm_response.partial
+                                && let Err(e) = session_service.append_event(ctx.session_id(), event.clone()).await {
                                     #[cfg(feature = "plugins")]
                                     if let Some(manager) = plugin_manager.as_ref() {
                                         manager.run_after_run(ctx.clone() as Arc<dyn adk_core::InvocationContext>).await;
@@ -950,7 +946,6 @@ impl Runner {
                                     yield Err(e);
                                     return;
                                 }
-                            }
                             yield Ok(event);
                         }
                         Err(e) => {
@@ -977,7 +972,7 @@ impl Runner {
                         as u32;
 
                     if invocation_count > 0
-                        && invocation_count % compaction_cfg.compaction_interval == 0
+                        && invocation_count.is_multiple_of(compaction_cfg.compaction_interval)
                     {
                         // Determine the window of events to compact
                         // We compact all events except the most recent overlap_size invocations
@@ -1123,10 +1118,10 @@ impl Runner {
         for i in (0..events.len()).rev() {
             if let Some(event) = events.at(i) {
                 // Check for explicit transfer
-                if let Some(target_name) = &event.actions.transfer_to_agent {
-                    if let Some(agent) = Self::find_agent(root_agent, target_name) {
-                        return agent;
-                    }
+                if let Some(target_name) = &event.actions.transfer_to_agent
+                    && let Some(agent) = Self::find_agent(root_agent, target_name)
+                {
+                    return agent;
                 }
 
                 if event.author == "user" {

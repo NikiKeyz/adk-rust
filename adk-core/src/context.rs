@@ -766,6 +766,11 @@ pub struct RunConfig {
     /// Maximum serialized bytes recorded for tracing payload fields when full
     /// payload recording is disabled.
     pub trace_payload_max_bytes: usize,
+    /// Maximum number of agent-to-agent transfers allowed in a single run.
+    ///
+    /// Prevents infinite transfer loops when agents transfer back and forth.
+    /// Defaults to 10 when `None`.
+    pub max_transfer_depth: Option<u32>,
 }
 
 impl Default for RunConfig {
@@ -781,6 +786,7 @@ impl Default for RunConfig {
             tool_concurrency: ToolConcurrencyConfig::default(),
             record_payloads: false,
             trace_payload_max_bytes: 2048,
+            max_transfer_depth: None,
         }
     }
 }
@@ -892,6 +898,14 @@ impl RunConfigBuilder {
         self
     }
 
+    /// Sets the maximum number of agent-to-agent transfers allowed in a single run.
+    ///
+    /// Prevents infinite transfer loops. Defaults to 10 when `None`.
+    pub fn max_transfer_depth(mut self, depth: u32) -> Self {
+        self.config.max_transfer_depth = Some(depth);
+        self
+    }
+
     /// Consumes the builder and returns the configured [`RunConfig`].
     pub fn build(self) -> RunConfig {
         self.config
@@ -913,6 +927,7 @@ mod tests {
         assert!(!config.record_payloads);
         assert_eq!(config.trace_payload_max_bytes, 2048);
         assert!(config.tool_confirmation_decisions.is_empty());
+        assert_eq!(config.max_transfer_depth, None);
     }
 
     #[test]

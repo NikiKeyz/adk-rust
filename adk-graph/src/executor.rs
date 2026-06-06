@@ -221,11 +221,10 @@ impl<'a> PregelExecutor<'a> {
 
                             // Attach progress handle if idle timeout is configured
                             let policy = self.graph.timeout_policy_for(node_name).cloned();
-                            if let Some(ref p) = policy {
-                                if p.idle_timeout.is_some() {
+                            if let Some(ref p) = policy
+                                && p.idle_timeout.is_some() {
                                     ctx.set_progress_handle(ProgressHandle::new());
                                 }
-                            }
 
                             let start = std::time::Instant::now();
 
@@ -468,10 +467,10 @@ impl<'a> PregelExecutor<'a> {
 
         // If resuming from checkpoint, load it
         if let Some(checkpoint_id) = &self.config.resume_from {
-            if let Some(cp) = self.graph.checkpointer.as_ref() {
-                if let Some(checkpoint) = cp.load_by_id(checkpoint_id).await? {
-                    state = checkpoint.state;
-                }
+            if let Some(cp) = self.graph.checkpointer.as_ref()
+                && let Some(checkpoint) = cp.load_by_id(checkpoint_id).await?
+            {
+                state = checkpoint.state;
             }
         } else if let Some(cp) = self.graph.checkpointer.as_ref() {
             // Try to load latest checkpoint for thread
@@ -573,10 +572,10 @@ impl<'a> PregelExecutor<'a> {
                 let mut ctx = NodeContext::new(self.state.clone(), self.config.clone(), self.step);
 
                 // Attach a ProgressHandle when idle timeout is configured
-                if let Some(ref p) = policy {
-                    if p.idle_timeout.is_some() {
-                        ctx.set_progress_handle(ProgressHandle::new());
-                    }
+                if let Some(ref p) = policy
+                    && p.idle_timeout.is_some()
+                {
+                    ctx.set_progress_handle(ProgressHandle::new());
                 }
 
                 let step = self.step;
@@ -712,16 +711,16 @@ impl CompiledGraph {
         thread_id: &str,
         updates: impl IntoIterator<Item = (String, serde_json::Value)>,
     ) -> Result<()> {
-        if let Some(cp) = &self.checkpointer {
-            if let Some(checkpoint) = cp.load(thread_id).await? {
-                let mut state = checkpoint.state;
-                for (key, value) in updates {
-                    self.schema.apply_update(&mut state, &key, value);
-                }
-                let new_checkpoint =
-                    Checkpoint::new(thread_id, state, checkpoint.step, checkpoint.pending_nodes);
-                cp.save(&new_checkpoint).await?;
+        if let Some(cp) = &self.checkpointer
+            && let Some(checkpoint) = cp.load(thread_id).await?
+        {
+            let mut state = checkpoint.state;
+            for (key, value) in updates {
+                self.schema.apply_update(&mut state, &key, value);
             }
+            let new_checkpoint =
+                Checkpoint::new(thread_id, state, checkpoint.step, checkpoint.pending_nodes);
+            cp.save(&new_checkpoint).await?;
         }
         Ok(())
     }

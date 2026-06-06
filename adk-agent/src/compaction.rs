@@ -83,11 +83,11 @@ impl BaseEventsSummarizer for LlmEventSummarizer {
         use futures::StreamExt;
         let mut summary_content: Option<Content> = None;
         while let Some(chunk_result) = response_stream.next().await {
-            if let Ok(chunk) = chunk_result {
-                if chunk.content.is_some() {
-                    summary_content = chunk.content;
-                    break;
-                }
+            if let Ok(chunk) = chunk_result
+                && chunk.content.is_some()
+            {
+                summary_content = chunk.content;
+                break;
             }
         }
 

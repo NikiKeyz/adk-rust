@@ -171,24 +171,24 @@ impl HistoryTrackingSession {
 
             if event.llm_response.partial {
                 // Partial chunk — merge into last entry if same role
-                if let Some(last) = history.last_mut() {
-                    if last.role == content.role {
-                        for part in &content.parts {
-                            if let adk_core::Part::Text { text } = part {
-                                // Append text to the last Text part
-                                if let Some(adk_core::Part::Text { text: existing }) =
-                                    last.parts.last_mut()
-                                {
-                                    existing.push_str(text);
-                                } else {
-                                    last.parts.push(part.clone());
-                                }
+                if let Some(last) = history.last_mut()
+                    && last.role == content.role
+                {
+                    for part in &content.parts {
+                        if let adk_core::Part::Text { text } = part {
+                            // Append text to the last Text part
+                            if let Some(adk_core::Part::Text { text: existing }) =
+                                last.parts.last_mut()
+                            {
+                                existing.push_str(text);
                             } else {
                                 last.parts.push(part.clone());
                             }
+                        } else {
+                            last.parts.push(part.clone());
                         }
-                        return;
                     }
+                    return;
                 }
                 // No matching last entry — start a new one
                 history.push(content.clone());

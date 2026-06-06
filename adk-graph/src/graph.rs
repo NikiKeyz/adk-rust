@@ -55,12 +55,11 @@ impl StateGraph {
 
             match entry_idx {
                 Some(idx) => {
-                    if let Edge::Entry { targets } = &mut self.edges[idx] {
-                        if let EdgeTarget::Node(node) = &target {
-                            if !targets.contains(node) {
-                                targets.push(node.clone());
-                            }
-                        }
+                    if let Edge::Entry { targets } = &mut self.edges[idx]
+                        && let EdgeTarget::Node(node) = &target
+                        && !targets.contains(node)
+                    {
+                        targets.push(node.clone());
                     }
                 }
                 None => {
@@ -151,10 +150,10 @@ impl StateGraph {
                     if source != START && !self.nodes.contains_key(source) {
                         return Err(GraphError::NodeNotFound(source.clone()));
                     }
-                    if let EdgeTarget::Node(name) = target {
-                        if !self.nodes.contains_key(name) {
-                            return Err(GraphError::EdgeTargetNotFound(name.clone()));
-                        }
+                    if let EdgeTarget::Node(name) = target
+                        && !self.nodes.contains_key(name)
+                    {
+                        return Err(GraphError::EdgeTargetNotFound(name.clone()));
                     }
                 }
                 Edge::Conditional { source, targets, .. } => {
@@ -162,10 +161,10 @@ impl StateGraph {
                         return Err(GraphError::NodeNotFound(source.clone()));
                     }
                     for target in targets.values() {
-                        if let EdgeTarget::Node(name) = target {
-                            if !self.nodes.contains_key(name) {
-                                return Err(GraphError::EdgeTargetNotFound(name.clone()));
-                            }
+                        if let EdgeTarget::Node(name) = target
+                            && !self.nodes.contains_key(name)
+                        {
+                            return Err(GraphError::EdgeTargetNotFound(name.clone()));
                         }
                     }
                 }
@@ -268,10 +267,10 @@ impl CompiledGraph {
                 }
                 Edge::Conditional { source, router, targets } if executed.contains(source) => {
                     let route = router(state);
-                    if let Some(EdgeTarget::Node(n)) = targets.get(&route) {
-                        if !next.contains(n) {
-                            next.push(n.clone());
-                        }
+                    if let Some(EdgeTarget::Node(n)) = targets.get(&route)
+                        && !next.contains(n)
+                    {
+                        next.push(n.clone());
                     }
                     // If route leads to END or not found in targets, next will be empty for this path
                 }
@@ -296,10 +295,10 @@ impl CompiledGraph {
                     if route == END {
                         return true;
                     }
-                    if let Some(target) = targets.get(&route) {
-                        if target.is_end() {
-                            return true;
-                        }
+                    if let Some(target) = targets.get(&route)
+                        && target.is_end()
+                    {
+                        return true;
                     }
                 }
                 _ => {}
@@ -322,18 +321,20 @@ impl CompiledGraph {
         for edge in &self.edges {
             match edge {
                 Edge::Direct { source, target } => {
-                    if let EdgeTarget::Node(name) = target {
-                        if name == target_node && !sources.contains(source) {
-                            sources.push(source.clone());
-                        }
+                    if let EdgeTarget::Node(name) = target
+                        && name == target_node
+                        && !sources.contains(source)
+                    {
+                        sources.push(source.clone());
                     }
                 }
                 Edge::Conditional { source, targets, .. } => {
                     for target in targets.values() {
-                        if let EdgeTarget::Node(name) = target {
-                            if name == target_node && !sources.contains(source) {
-                                sources.push(source.clone());
-                            }
+                        if let EdgeTarget::Node(name) = target
+                            && name == target_node
+                            && !sources.contains(source)
+                        {
+                            sources.push(source.clone());
                         }
                     }
                 }

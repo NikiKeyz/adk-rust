@@ -63,10 +63,6 @@ pub enum Model {
     /// Gemini 3.1 Flash Lite — GA, most cost-efficient for high-volume agentic tasks.
     #[serde(rename = "models/gemini-3.1-flash-lite")]
     Gemini31FlashLite,
-    /// Gemini 3.1 Flash Lite preview (deprecated).
-    #[deprecated(note = "Shut down May 25, 2026. Use Model::Gemini31FlashLite instead.")]
-    #[serde(rename = "models/gemini-3.1-flash-lite-preview")]
-    Gemini31FlashLitePreview,
     /// Gemini 3.1 Flash Image (Nano Banana 2) — GA native image generation.
     #[serde(rename = "models/gemini-3.1-flash-image")]
     Gemini31FlashImage,
@@ -123,28 +119,6 @@ pub enum Model {
     #[serde(rename = "models/gemini-2.5-flash-lite-preview-09-2025")]
     Gemini25FlashLitePreview092025,
 
-    // ── Gemini 2.0 (deprecated, shutting down March 31, 2026) ────
-    /// Gemini 2.0 Flash (deprecated).
-    #[deprecated(note = "Gemini 2.0 models shut down March 31, 2026")]
-    #[serde(rename = "models/gemini-2.0-flash")]
-    Gemini20Flash,
-    /// Gemini 2.0 Flash 001 (deprecated).
-    #[deprecated(note = "Gemini 2.0 models shut down March 31, 2026")]
-    #[serde(rename = "models/gemini-2.0-flash-001")]
-    Gemini20Flash001,
-    /// Gemini 2.0 Flash experimental (deprecated).
-    #[deprecated(note = "Gemini 2.0 models shut down March 31, 2026")]
-    #[serde(rename = "models/gemini-2.0-flash-exp")]
-    Gemini20FlashExp,
-    /// Gemini 2.0 Flash Lite (deprecated).
-    #[deprecated(note = "Gemini 2.0 models shut down March 31, 2026")]
-    #[serde(rename = "models/gemini-2.0-flash-lite")]
-    Gemini20FlashLite,
-    /// Gemini 2.0 Flash Lite 001 (deprecated).
-    #[deprecated(note = "Gemini 2.0 models shut down March 31, 2026")]
-    #[serde(rename = "models/gemini-2.0-flash-lite-001")]
-    Gemini20FlashLite001,
-
     // ── Embedding models ─────────────────────────────────────────
     /// Gemini Embedding 2 — GA multimodal embeddings (text, image, video, audio, PDF).
     #[serde(rename = "models/gemini-embedding-2")]
@@ -152,10 +126,6 @@ pub enum Model {
     /// Gemini Embedding 001 (3072 dimensions). Replaces text-embedding-004.
     #[serde(rename = "models/gemini-embedding-001")]
     GeminiEmbedding001,
-    /// Deprecated: use `GeminiEmbedding001` instead.
-    #[deprecated(note = "Use Model::GeminiEmbedding001 (gemini-embedding-001) instead")]
-    #[serde(rename = "models/text-embedding-004")]
-    TextEmbedding004,
 
     // ── Custom ───────────────────────────────────────────────────
     /// A custom model identifier string (e.g. `"models/my-tuned-model"`).
@@ -171,7 +141,6 @@ impl Model {
             Model::Gemini35Flash => "models/gemini-3.5-flash",
             Model::Gemini31ProPreview => "models/gemini-3.1-pro-preview",
             Model::Gemini31FlashLite => "models/gemini-3.1-flash-lite",
-            Model::Gemini31FlashLitePreview => "models/gemini-3.1-flash-lite-preview",
             Model::Gemini31FlashImage => "models/gemini-3.1-flash-image",
             Model::Gemini3ProPreview => "models/gemini-3-pro-preview",
             Model::Gemini3ProImage => "models/gemini-3-pro-image",
@@ -192,14 +161,8 @@ impl Model {
             Model::Gemini25FlashPreviewTts => "models/gemini-2.5-flash-preview-tts",
             Model::Gemini25FlashLite => "models/gemini-2.5-flash-lite",
             Model::Gemini25FlashLitePreview092025 => "models/gemini-2.5-flash-lite-preview-09-2025",
-            Model::Gemini20Flash => "models/gemini-2.0-flash",
-            Model::Gemini20Flash001 => "models/gemini-2.0-flash-001",
-            Model::Gemini20FlashExp => "models/gemini-2.0-flash-exp",
-            Model::Gemini20FlashLite => "models/gemini-2.0-flash-lite",
-            Model::Gemini20FlashLite001 => "models/gemini-2.0-flash-lite-001",
             Model::GeminiEmbedding2 => "models/gemini-embedding-2",
             Model::GeminiEmbedding001 => "models/gemini-embedding-001",
-            Model::TextEmbedding004 => "models/text-embedding-004",
             Model::Custom(model) => model,
         }
     }
@@ -211,7 +174,6 @@ impl Model {
             Model::Gemini35Flash => "gemini-3.5-flash",
             Model::Gemini31ProPreview => "gemini-3.1-pro-preview",
             Model::Gemini31FlashLite => "gemini-3.1-flash-lite",
-            Model::Gemini31FlashLitePreview => "gemini-3.1-flash-lite-preview",
             Model::Gemini31FlashImage => "gemini-3.1-flash-image",
             Model::Gemini3ProPreview => "gemini-3-pro-preview",
             Model::Gemini3ProImage => "gemini-3-pro-image",
@@ -228,14 +190,8 @@ impl Model {
             Model::Gemini25FlashPreviewTts => "gemini-2.5-flash-preview-tts",
             Model::Gemini25FlashLite => "gemini-2.5-flash-lite",
             Model::Gemini25FlashLitePreview092025 => "gemini-2.5-flash-lite-preview-09-2025",
-            Model::Gemini20Flash => "gemini-2.0-flash",
-            Model::Gemini20Flash001 => "gemini-2.0-flash-001",
-            Model::Gemini20FlashExp => "gemini-2.0-flash-exp",
-            Model::Gemini20FlashLite => "gemini-2.0-flash-lite",
-            Model::Gemini20FlashLite001 => "gemini-2.0-flash-lite-001",
             Model::GeminiEmbedding2 => "gemini-embedding-2",
             Model::GeminiEmbedding001 => "gemini-embedding-001",
-            Model::TextEmbedding004 => "text-embedding-004",
             Model::Custom(model) => {
                 if model.starts_with("projects/") {
                     return model.clone();
@@ -261,7 +217,6 @@ impl From<String> for Model {
             // Gemini 3.1 models
             "gemini-3.1-pro-preview" => Self::Gemini31ProPreview,
             "gemini-3.1-flash-lite" => Self::Gemini31FlashLite,
-            "gemini-3.1-flash-lite-preview" => Self::Gemini31FlashLitePreview,
             "gemini-3.1-flash-image" => Self::Gemini31FlashImage,
             // Gemini 3 models
             "gemini-3-pro-preview" => Self::Gemini3ProPreview,
@@ -280,16 +235,9 @@ impl From<String> for Model {
             "gemini-2.5-flash-preview-tts" => Self::Gemini25FlashPreviewTts,
             "gemini-2.5-flash-lite" => Self::Gemini25FlashLite,
             "gemini-2.5-flash-lite-preview-09-2025" => Self::Gemini25FlashLitePreview092025,
-            // Gemini 2.0 models (deprecated, shutting down March 31, 2026)
-            "gemini-2.0-flash" => Self::Gemini20Flash,
-            "gemini-2.0-flash-001" => Self::Gemini20Flash001,
-            "gemini-2.0-flash-exp" => Self::Gemini20FlashExp,
-            "gemini-2.0-flash-lite" => Self::Gemini20FlashLite,
-            "gemini-2.0-flash-lite-001" => Self::Gemini20FlashLite001,
             // Embedding models
             "gemini-embedding-2" => Self::GeminiEmbedding2,
             "gemini-embedding-001" => Self::GeminiEmbedding001,
-            "text-embedding-004" => Self::TextEmbedding004,
             _ => Self::Custom(model),
         }
     }

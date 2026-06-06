@@ -135,10 +135,10 @@ impl MutableSession {
             }
 
             // Skip events that were already compacted
-            if let Some(boundary) = compaction_boundary {
-                if event.timestamp <= boundary {
-                    continue;
-                }
+            if let Some(boundary) = compaction_boundary
+                && event.timestamp <= boundary
+            {
+                continue;
             }
 
             // When filtering for a specific agent, skip events from other agents.
@@ -146,10 +146,11 @@ impl MutableSession {
             // Skip: other agents' events entirely (model-role, function calls,
             // and function/tool responses). This prevents the sub-agent from
             // seeing orphaned function responses without their preceding calls.
-            if let Some(name) = agent_name {
-                if event.author != "user" && event.author != name {
-                    continue;
-                }
+            if let Some(name) = agent_name
+                && event.author != "user"
+                && event.author != name
+            {
+                continue;
             }
 
             if let Some(content) = &event.llm_response.content {

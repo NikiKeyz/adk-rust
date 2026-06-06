@@ -324,21 +324,19 @@ impl AgentNode {
 /// Default input mapper - looks for "messages" or "input" in state
 fn default_input_mapper(state: &State) -> adk_core::Content {
     // Try to get messages first
-    if let Some(messages) = state.get("messages") {
-        if let Some(arr) = messages.as_array() {
-            if let Some(last) = arr.last() {
-                if let Some(content) = last.get("content").and_then(|c| c.as_str()) {
-                    return adk_core::Content::new("user").with_text(content);
-                }
-            }
-        }
+    if let Some(messages) = state.get("messages")
+        && let Some(arr) = messages.as_array()
+        && let Some(last) = arr.last()
+        && let Some(content) = last.get("content").and_then(|c| c.as_str())
+    {
+        return adk_core::Content::new("user").with_text(content);
     }
 
     // Try input field
-    if let Some(input) = state.get("input") {
-        if let Some(text) = input.as_str() {
-            return adk_core::Content::new("user").with_text(text);
-        }
+    if let Some(input) = state.get("input")
+        && let Some(text) = input.as_str()
+    {
+        return adk_core::Content::new("user").with_text(text);
     }
 
     adk_core::Content::new("user")

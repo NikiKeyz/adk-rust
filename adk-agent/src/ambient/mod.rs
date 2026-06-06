@@ -24,7 +24,7 @@ pub mod file_watch_trigger;
 /// WebhookTrigger event source.
 pub mod webhook_trigger;
 
-pub use agent::{AmbientAgent, AmbientAgentStatus};
+pub use agent::{AmbientAgent, AmbientAgentStatus, TriggerHandler};
 pub use cron_trigger::CronTrigger;
 pub use event_source::{EventSource, TriggerEvent};
 pub use file_watch_trigger::FileWatchTrigger;

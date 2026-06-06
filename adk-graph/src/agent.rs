@@ -146,12 +146,11 @@ impl Agent for GraphAgent {
                     let events = output_mapper(&state);
                     for event in events {
                         // Call after callback for each event
-                        if let Some(callback) = &after_callback {
-                            if let Err(e) = callback(ctx_clone.clone(), event.clone()).await {
+                        if let Some(callback) = &after_callback
+                            && let Err(e) = callback(ctx_clone.clone(), event.clone()).await {
                                 yield Err(e);
                                 return;
                             }
-                        }
                         yield Ok(event);
                     }
                 }
@@ -317,12 +316,11 @@ impl GraphAgentBuilder {
             let entry_idx = self.edges.iter().position(|e| matches!(e, Edge::Entry { .. }));
             match entry_idx {
                 Some(idx) => {
-                    if let Edge::Entry { targets } = &mut self.edges[idx] {
-                        if let EdgeTarget::Node(node) = &target {
-                            if !targets.contains(node) {
-                                targets.push(node.clone());
-                            }
-                        }
+                    if let Edge::Entry { targets } = &mut self.edges[idx]
+                        && let EdgeTarget::Node(node) = &target
+                        && !targets.contains(node)
+                    {
+                        targets.push(node.clone());
                     }
                 }
                 None => {

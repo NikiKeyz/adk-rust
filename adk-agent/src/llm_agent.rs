@@ -81,7 +81,6 @@ pub struct LlmAgent {
     disallow_transfer_to_peers: bool,
     include_contents: adk_core::IncludeContents,
     tools: Vec<Arc<dyn Tool>>,
-    #[allow(dead_code)] // Used in runtime toolset resolution (task 2.2)
     toolsets: Vec<Arc<dyn Toolset>>,
     sub_agents: Vec<Arc<dyn Agent>>,
     output_key: Option<String>,
@@ -1417,12 +1416,11 @@ impl Agent for LlmAgent {
             let collect_long_running_ids = |content: &Content| -> Vec<String> {
                 content.parts.iter()
                     .filter_map(|p| {
-                        if let Part::FunctionCall { name, .. } = p {
-                            if let Some(tool) = tool_map.get(name) {
-                                if tool.is_long_running() {
-                                    return Some(name.clone());
-                                }
-                            }
+                        if let Part::FunctionCall { name, .. } = p
+                            && let Some(tool) = tool_map.get(name)
+                            && tool.is_long_running()
+                        {
+                            return Some(name.clone());
                         }
                         None
                     })
@@ -1896,24 +1894,24 @@ impl Agent for LlmAgent {
                     ));
 
                     // Handle output_key: save final agent output to state_delta
-                    if let Some(ref output_key) = output_key {
-                        if !has_function_calls {  // Only save if not calling tools
-                            let mut text_parts = String::new();
-                            for part in &content.parts {
-                                if let Part::Text { text } = part {
-                                    text_parts.push_str(text);
-                                }
+                    if let Some(ref output_key) = output_key
+                        && !has_function_calls
+                    {
+                        let mut text_parts = String::new();
+                        for part in &content.parts {
+                            if let Part::Text { text } = part {
+                                text_parts.push_str(text);
                             }
-                            if !text_parts.is_empty() {
-                                // Yield a final state update event
-                                let mut state_event = Event::new(&invocation_id);
-                                state_event.author = agent_name.clone();
-                                state_event.actions.state_delta.insert(
-                                    output_key.clone(),
-                                    serde_json::Value::String(text_parts),
-                                );
-                                yield Ok(state_event);
-                            }
+                        }
+                        if !text_parts.is_empty() {
+                            // Yield a final state update event
+                            let mut state_event = Event::new(&invocation_id);
+                            state_event.author = agent_name.clone();
+                            state_event.actions.state_delta.insert(
+                                output_key.clone(),
+                                serde_json::Value::String(text_parts),
+                            );
+                            yield Ok(state_event);
                         }
                     }
                 }
@@ -2057,11 +2055,11 @@ impl Agent for LlmAgent {
                         if fc_name == "transfer_to_agent" {
                             return false;
                         }
-                        if let Some(tool) = tool_map.get(fc_name) {
-                            if tool.is_builtin() {
-                                adk_telemetry::debug!(tool.name = %fc_name, "skipping built-in tool execution");
-                                return false;
-                            }
+                        if let Some(tool) = tool_map.get(fc_name)
+                            && tool.is_builtin()
+                        {
+                            adk_telemetry::debug!(tool.name = %fc_name, "skipping built-in tool execution");
+                            return false;
                         }
                         true
                     }).collect();
@@ -2282,25 +2280,25 @@ impl Agent for LlmAgent {
                             // Circuit breaker check
                             if response_content.is_none() {
                                 let guard = cb_mutex.lock().unwrap_or_else(|e| e.into_inner());
-                                if let Some(ref cb_state) = *guard {
-                                    if cb_state.is_open(&name) {
-                                        let msg = format!(
-                                            "Tool '{}' is temporarily disabled after {} consecutive failures",
-                                            name, cb_state.threshold
-                                        );
-                                        tracing::warn!(tool.name = %name, "circuit breaker open, skipping tool execution");
-                                        response_content = Some(Content {
-                                            role: "function".to_string(),
-                                            parts: vec![Part::FunctionResponse {
-                                                function_response: FunctionResponseData::new(
-                                                    name.clone(),
-                                                    serde_json::json!({ "error": msg }),
-                                                ),
-                                                id: id.clone(),
-                                            }],
-                                        });
-                                        run_after_tool_callbacks = false;
-                                    }
+                                if let Some(ref cb_state) = *guard
+                                    && cb_state.is_open(&name)
+                                {
+                                    let msg = format!(
+                                        "Tool '{}' is temporarily disabled after {} consecutive failures",
+                                        name, cb_state.threshold
+                                    );
+                                    tracing::warn!(tool.name = %name, "circuit breaker open, skipping tool execution");
+                                    response_content = Some(Content {
+                                        role: "function".to_string(),
+                                        parts: vec![Part::FunctionResponse {
+                                            function_response: FunctionResponseData::new(
+                                                name.clone(),
+                                                serde_json::json!({ "error": msg }),
+                                            ),
+                                            id: id.clone(),
+                                        }],
+                                    });
+                                    run_after_tool_callbacks = false;
                                 }
                                 drop(guard);
                             }
@@ -2346,7 +2344,15 @@ impl Agent for LlmAgent {
                                             );
                                             tracing::debug!(tool.name = %name, tool.args = %args_payload, attempt = attempt, "tool_call");
                                             let exec_future = tool_clone.execute(tool_ctx.clone(), final_args.clone());
-                                            tokio::time::timeout(tool_timeout, exec_future).await
+                                            let unwind_safe_future = std::panic::AssertUnwindSafe(
+                                                tokio::time::timeout(tool_timeout, exec_future)
+                                            );
+                                            match futures::FutureExt::catch_unwind(unwind_safe_future).await {
+                                                Ok(result) => result,
+                                                Err(_panic) => Ok(Err(adk_core::AdkError::tool(
+                                                    format!("tool '{}' panicked during execution", name),
+                                                ))),
+                                            }
                                         }.instrument(tool_span.clone()).await {
                                             Ok(Ok(value)) => {
                                                 let result_payload = trace_json_payload(
