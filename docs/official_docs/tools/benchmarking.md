@@ -85,8 +85,7 @@ cargo adk bench --save-baseline v1.0.0
 cargo adk bench --check-regression v1.0.0 --tolerance 10
 
 # Tighter tolerance for critical paths
-cargo adk bench --workload simple_tool_call \
-    --check-regression v1.0.0 --tolerance 5
+cargo adk bench --workload simple_tool_call --check-regression v1.0.0 --tolerance 5
 ```
 
 Exit codes:

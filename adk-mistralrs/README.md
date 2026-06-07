@@ -486,7 +486,7 @@ let model = MistralRsModel::new(config).await?;
 
 ## Publishing
 
-As of v0.10.0, `adk-mistralrs` is publishable to crates.io. The blocker (mistral.rs using git dependencies) was resolved when mistral.rs published v0.8.0 to crates.io in April 2026.
+`adk-mistralrs` is published to [crates.io](https://crates.io/crates/adk-mistralrs) as a workspace member. GPU features (`cuda`, `metal`) are opt-in.
 
 ## Examples
 
