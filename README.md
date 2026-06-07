@@ -990,9 +990,7 @@ cargo adk bench --dry-run
 cargo adk bench --max-cost-usd 5.00 --confirm-cost --runs 5
 
 # Compare against Python frameworks
-cargo adk bench --workload simple_tool_call --runs 3 \
-  --external-config adk-bench/harnesses/external-frameworks.json \
-  --format markdown --confirm-cost
+cargo adk bench --workload simple_tool_call --runs 3 --external-config adk-bench/harnesses/external-frameworks.json --format markdown --confirm-cost
 
 # Save a baseline for CI regression detection
 cargo adk bench --save-baseline --confirm-cost

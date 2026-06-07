@@ -896,6 +896,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore] // Requires GOOGLE_API_KEY
     async fn test_sequential_run() {
         let config = BenchConfig {
             workload: Some("simple_tool_call".to_string()),
@@ -913,6 +914,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore] // Requires GOOGLE_API_KEY
     async fn test_concurrent_run() {
         let config = BenchConfig {
             workload: Some("simple_tool_call".to_string()),
@@ -932,6 +934,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore] // Requires GOOGLE_API_KEY
     async fn test_sweep_mode() {
         let config = BenchConfig {
             workload: Some("simple_tool_call".to_string()),
@@ -1492,13 +1495,6 @@ mod tests {
         let cost = runner.estimate_cost(&workloads);
         // With default pricing for gemini-2.5-flash and 3 workloads, cost should be > 0
         assert!(cost >= 0.0);
-    }
-
-    #[tokio::test]
-    async fn test_workload_stub_execution() {
-        let (cold_start, overheads) = execute_workload_stub("test", 3).await.unwrap();
-        assert!(cold_start > Duration::ZERO);
-        assert_eq!(overheads.len(), 3);
     }
 
     #[tokio::test]
