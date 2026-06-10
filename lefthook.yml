@@ -4,6 +4,11 @@
 # pre-commit: fast format + lint checks (zero warnings).
 # pre-push:   full test suite before code leaves your machine.
 #
+# Each gate is scoped with `glob` so it only runs when Rust sources or Cargo
+# manifests/lockfile are part of the change. Docs- or script-only commits skip
+# the gates entirely (lefthook skips a command when no matching files are
+# staged/pushed).
+#
 # Install hooks once with: lefthook install
 
 pre-commit:
@@ -11,10 +16,12 @@ pre-commit:
   commands:
     fmt:
       tags: format
+      glob: "*.{rs,toml,lock}"
       run: cargo fmt --all -- --check
       fail_text: "Formatting check failed. Run `cargo fmt --all` to fix."
     clippy:
       tags: lint
+      glob: "*.{rs,toml,lock}"
       run: cargo clippy --workspace --all-targets -- -D warnings
       fail_text: "Clippy found warnings. Fix them before committing (zero-warnings policy)."
 
@@ -22,5 +29,6 @@ pre-push:
   commands:
     nextest:
       tags: test
+      glob: "*.{rs,toml,lock}"
       run: cargo nextest run --workspace
       fail_text: "Tests failed. Fix regressions before pushing."
