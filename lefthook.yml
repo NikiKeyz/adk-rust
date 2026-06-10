@@ -4,20 +4,23 @@
 # pre-commit: fast format + lint checks (zero warnings).
 # pre-push:   full test suite before code leaves your machine.
 #
-# Each gate is scoped with `glob` so it only runs when files that actually
-# affect that gate are part of the change. Docs- or script-only commits skip
-# the gates entirely (lefthook skips a command when no matching files are
-# staged/pushed). The globs are deliberately per-gate:
-#   - fmt     depends on Rust sources, rustfmt.toml, and the toolchain.
-#   - clippy  also depends on Cargo manifests/lockfiles, .cargo/config.toml,
-#             and .clippy.toml (anything that changes compilation or lints).
+# The gates run `cargo <tool> --workspace`, which only builds the workspace
+# members — the `adk-*`, `awp-*`, and `cargo-adk` crates plus the root manifest.
+# The standalone `examples/*` crates (and reference/learning dirs) are EXCLUDED
+# from the workspace, so changes there don't affect these gates. The globs are
+# therefore scoped to workspace-member paths only; an example-only change skips
+# every gate.
+#
+# Each gate globs just the inputs that affect it:
+#   - fmt     Rust sources, rustfmt.toml, and the toolchain.
+#   - clippy  also Cargo manifests, the lockfile, .cargo/config.toml, and
+#             .clippy.toml (anything that changes compilation or lints).
 #   - nextest mirrors clippy's compile inputs plus .config/nextest.toml.
 #
-# Glob notes (lefthook's matcher): `*` crosses `/` (so `*.rs` matches nested
-# files), but `**` requires 1+ directories — so plain `Cargo.toml` only matches
-# the workspace root and `**/Cargo.toml` is needed for per-crate manifests.
-# We intentionally avoid `*.toml`/`*.lock`, which would also match non-Cargo
-# files like deny.toml, .cargo/audit.toml, and flake.lock.
+# Glob notes (lefthook's matcher): `*` crosses `/`, so `adk-*/*.rs` matches
+# Rust files at any depth under an `adk-*` crate, and patterns are anchored at
+# the path start (so `examples/...` never matches). Workspace members share a
+# single root Cargo.lock — there are no per-member lockfiles to glob.
 #
 # Install hooks once with: lefthook install
 
@@ -27,7 +30,9 @@ pre-commit:
     fmt:
       tags: format
       glob:
-        - "*.rs"
+        - "adk-*/*.rs"
+        - "awp-*/*.rs"
+        - "cargo-adk/*.rs"
         - "rustfmt.toml"
         - "rust-toolchain.toml"
       run: cargo fmt --all -- --check
@@ -35,11 +40,14 @@ pre-commit:
     clippy:
       tags: lint
       glob:
-        - "*.rs"
+        - "adk-*/*.rs"
+        - "awp-*/*.rs"
+        - "cargo-adk/*.rs"
+        - "adk-*/Cargo.toml"
+        - "awp-*/Cargo.toml"
+        - "cargo-adk/Cargo.toml"
         - "Cargo.toml"
-        - "**/Cargo.toml"
         - "Cargo.lock"
-        - "**/Cargo.lock"
         - ".cargo/config.toml"
         - "rust-toolchain.toml"
         - ".clippy.toml"
@@ -51,11 +59,14 @@ pre-push:
     nextest:
       tags: test
       glob:
-        - "*.rs"
+        - "adk-*/*.rs"
+        - "awp-*/*.rs"
+        - "cargo-adk/*.rs"
+        - "adk-*/Cargo.toml"
+        - "awp-*/Cargo.toml"
+        - "cargo-adk/Cargo.toml"
         - "Cargo.toml"
-        - "**/Cargo.toml"
         - "Cargo.lock"
-        - "**/Cargo.lock"
         - ".cargo/config.toml"
         - "rust-toolchain.toml"
         - ".config/nextest.toml"
