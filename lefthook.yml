@@ -1,0 +1,26 @@
+# Lefthook configuration — enforces the ADK-Rust Quality Gates locally.
+# See CONTRIBUTING.md "3. Develop with Quality Gates".
+#
+# pre-commit: fast format + lint checks (zero warnings).
+# pre-push:   full test suite before code leaves your machine.
+#
+# Install hooks once with: lefthook install
+
+pre-commit:
+  parallel: false
+  commands:
+    fmt:
+      tags: format
+      run: cargo fmt --all -- --check
+      fail_text: "Formatting check failed. Run `cargo fmt --all` to fix."
+    clippy:
+      tags: lint
+      run: cargo clippy --workspace --all-targets -- -D warnings
+      fail_text: "Clippy found warnings. Fix them before committing (zero-warnings policy)."
+
+pre-push:
+  commands:
+    nextest:
+      tags: test
+      run: cargo nextest run --workspace
+      fail_text: "Tests failed. Fix regressions before pushing."
