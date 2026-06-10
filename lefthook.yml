@@ -4,16 +4,20 @@
 # pre-commit: fast format + lint checks (zero warnings).
 # pre-push:   full test suite before code leaves your machine.
 #
-# Each gate is scoped with `glob` so it only runs when Rust sources or Cargo
-# manifests/lockfile are part of the change. Docs- or script-only commits skip
+# Each gate is scoped with `glob` so it only runs when files that actually
+# affect that gate are part of the change. Docs- or script-only commits skip
 # the gates entirely (lefthook skips a command when no matching files are
-# staged/pushed).
+# staged/pushed). The globs are deliberately per-gate:
+#   - fmt     depends on Rust sources, rustfmt.toml, and the toolchain.
+#   - clippy  also depends on Cargo manifests/lockfiles, .cargo/config.toml,
+#             and .clippy.toml (anything that changes compilation or lints).
+#   - nextest mirrors clippy's compile inputs plus .config/nextest.toml.
 #
 # Glob notes (lefthook's matcher): `*` crosses `/` (so `*.rs` matches nested
 # files), but `**` requires 1+ directories — so plain `Cargo.toml` only matches
 # the workspace root and `**/Cargo.toml` is needed for per-crate manifests.
 # We intentionally avoid `*.toml`/`*.lock`, which would also match non-Cargo
-# files like rustfmt.toml, deny.toml, and flake.lock.
+# files like deny.toml, .cargo/audit.toml, and flake.lock.
 #
 # Install hooks once with: lefthook install
 
@@ -24,10 +28,8 @@ pre-commit:
       tags: format
       glob:
         - "*.rs"
-        - "Cargo.toml"
-        - "**/Cargo.toml"
-        - "Cargo.lock"
-        - "**/Cargo.lock"
+        - "rustfmt.toml"
+        - "rust-toolchain.toml"
       run: cargo fmt --all -- --check
       fail_text: "Formatting check failed. Run `cargo fmt --all` to fix."
     clippy:
@@ -38,6 +40,9 @@ pre-commit:
         - "**/Cargo.toml"
         - "Cargo.lock"
         - "**/Cargo.lock"
+        - ".cargo/config.toml"
+        - "rust-toolchain.toml"
+        - ".clippy.toml"
       run: cargo clippy --workspace --all-targets -- -D warnings
       fail_text: "Clippy found warnings. Fix them before committing (zero-warnings policy)."
 
@@ -51,5 +56,8 @@ pre-push:
         - "**/Cargo.toml"
         - "Cargo.lock"
         - "**/Cargo.lock"
+        - ".cargo/config.toml"
+        - "rust-toolchain.toml"
+        - ".config/nextest.toml"
       run: cargo nextest run --workspace
       fail_text: "Tests failed. Fix regressions before pushing."
