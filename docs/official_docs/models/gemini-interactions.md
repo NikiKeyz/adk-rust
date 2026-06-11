@@ -55,7 +55,7 @@ adk-gemini = { version = "1.0.1", features = ["interactions"] }
 
 # Through the model facade / umbrella
 adk-model = { version = "1.0.1", features = ["gemini-interactions"] }
-adk-rust  = { version = "1.0.0", features = ["gemini-interactions"] }
+adk-rust  = { version = "1.0.1", features = ["gemini-interactions"] }
 ```
 
 The feature adds **no new dependencies** and is fully additive to the existing `generateContent` API.
@@ -223,7 +223,7 @@ The transport is gated behind the `gemini-interactions` feature (forwarded from
 
 ```toml
 adk-model = { version = "1.0.1", features = ["gemini-interactions"] }
-adk-rust  = { version = "1.0.0", features = ["gemini-interactions"] }
+adk-rust  = { version = "1.0.1", features = ["gemini-interactions"] }
 ```
 
 Flip the switch on the model and wrap it in a normal `LlmAgent` and `Runner` —

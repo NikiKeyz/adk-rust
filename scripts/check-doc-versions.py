@@ -61,7 +61,7 @@ def main() -> None:
     errors: list[str] = []
 
     version_pattern = re.compile(
-        r'\b(?:adk|awp|cargo)-[a-z0-9-]+ = (?:"(\d+\.\d+\.\d+)"|\{ version = "(\d+\.\d+\.\d+)")'
+        r'\b(?:adk|awp|cargo)-[a-z0-9-]+\s*=\s*(?:"(\d+\.\d+\.\d+)"|\{\s*version\s*=\s*"(\d+\.\d+\.\d+)")'
     )
     # `adk-rust = { version = "...", features = [...] }` or
     # `adk-rust = { ... features = ["a", "b"] }` on one line
