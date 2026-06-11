@@ -178,10 +178,10 @@ async fn test_mcp_tool_integration() {
 
     let mut received_response = false;
     while let Some(result) = stream.next().await {
-        if let Ok(event) = result {
-            if let Some(_content) = event.llm_response.content {
-                received_response = true;
-            }
+        if let Ok(event) = result
+            && let Some(_content) = event.llm_response.content
+        {
+            received_response = true;
         }
     }
 

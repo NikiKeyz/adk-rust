@@ -243,12 +243,11 @@ async fn test_callback_short_circuit() {
     let mut found_short_circuit = false;
     while let Some(result) = stream.next().await {
         let event = result.unwrap();
-        if let Some(content) = event.llm_response.content {
-            if let Some(Part::Text { text }) = content.parts.first() {
-                if text.contains("Short-circuited") {
-                    found_short_circuit = true;
-                }
-            }
+        if let Some(content) = event.llm_response.content
+            && let Some(Part::Text { text }) = content.parts.first()
+            && text.contains("Short-circuited")
+        {
+            found_short_circuit = true;
         }
     }
 

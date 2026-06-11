@@ -143,12 +143,12 @@ async fn test_multi_agent_workflow() {
 
     let mut response_text = String::new();
     while let Some(result) = stream.next().await {
-        if let Ok(event) = result {
-            if let Some(content) = event.llm_response.content {
-                for part in content.parts {
-                    if let Part::Text { text } = part {
-                        response_text.push_str(&text);
-                    }
+        if let Ok(event) = result
+            && let Some(content) = event.llm_response.content
+        {
+            for part in content.parts {
+                if let Part::Text { text } = part {
+                    response_text.push_str(&text);
                 }
             }
         }
@@ -191,14 +191,14 @@ async fn test_agent_delegation() {
 
     let mut has_answer = false;
     while let Some(result) = stream.next().await {
-        if let Ok(event) = result {
-            if let Some(content) = event.llm_response.content {
-                for part in content.parts {
-                    if let Part::Text { text } = part {
-                        if text.contains("345") {
-                            has_answer = true;
-                        }
-                    }
+        if let Ok(event) = result
+            && let Some(content) = event.llm_response.content
+        {
+            for part in content.parts {
+                if let Part::Text { text } = part
+                    && text.contains("345")
+                {
+                    has_answer = true;
                 }
             }
         }

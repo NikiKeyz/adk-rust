@@ -335,10 +335,10 @@ async fn test_tool_confirmation_approve_executes_tool() {
         let event = result.unwrap();
         if event.actions.tool_confirmation_decision == Some(ToolConfirmationDecision::Approve) {
             let content = event.llm_response.content.as_ref().unwrap();
-            if let Some(Part::FunctionResponse { function_response, .. }) = content.parts.first() {
-                if function_response.response.get("status") == Some(&json!("tool-ok")) {
-                    saw_tool_result = true;
-                }
+            if let Some(Part::FunctionResponse { function_response, .. }) = content.parts.first()
+                && function_response.response.get("status") == Some(&json!("tool-ok"))
+            {
+                saw_tool_result = true;
             }
         }
     }

@@ -3,6 +3,12 @@
 //! Implements Property 2 (Runner Configuration Builder Round-Trip) from the
 //! one-point-zero-readiness design document.
 
+// prop_run_config_default_setter_equivalence deliberately builds a config via
+// Default + field setters to compare against the builder — the struct-literal
+// form clippy suggests would defeat the comparison. (File-level because the
+// allow can't attach inside the proptest! macro expansion.)
+#![allow(clippy::field_reassign_with_default)]
+
 use adk_core::{
     BackpressurePolicy, RunConfig, RunConfigBuilder, StreamingMode, ToolConcurrencyConfig,
     ToolConfirmationDecision,
@@ -141,7 +147,9 @@ proptest! {
             .trace_payload_max_bytes(trace_payload_max_bytes)
             .build();
 
-        // Build via Default + field setters
+        // Build via Default + field setters — the field-by-field path is the
+        // behavior under test here, so the struct-literal form clippy suggests
+        // would defeat the comparison.
         let mut via_default = RunConfig::default();
         via_default.streaming_mode = streaming_mode;
         via_default.auto_cache = auto_cache;

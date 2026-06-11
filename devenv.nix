@@ -80,6 +80,11 @@
     git
     jq
     curl
+
+    # Quality gates — lefthook is the single git-hook manager (see lefthook.yml);
+    # shellcheck backs its pre-commit shell-script gate
+    lefthook
+    shellcheck
   ]
   ++ lib.optionals pkgs.stdenv.isLinux [
     # Linux-only: faster linking, perf tools
@@ -195,16 +200,20 @@
   # --------------------------------------------------------------------------
   # Quality Gates (Git-Hooks)
   # --------------------------------------------------------------------------
-  git-hooks.hooks = {
-    rustfmt.enable = true;
-    clippy.enable = true;
-    shellcheck.enable = true;
-  };
+  # Managed by lefthook (see lefthook.yml) — registered automatically in
+  # enterShell below. devenv's own git-hooks integration is intentionally NOT
+  # used: two hook managers would fight over .git/hooks/pre-commit, and
+  # lefthook works identically for non-Nix contributors (scripts/setup-dev.sh
+  # installs it outside devenv).
 
   # --------------------------------------------------------------------------
   # Shell hooks — run on entering the dev shell
   # --------------------------------------------------------------------------
   enterShell = ''
+    # Register the lefthook-managed quality gates (idempotent; overwrites any
+    # stale hooks left behind by the previous devenv git-hooks integration).
+    lefthook install >/dev/null 2>&1 || true
+
     echo "🚀 Welcome to the ADK-Rust Development Environment!"
     echo "   Rust:    $(rustc --version)"
     echo "   Cargo:   $(cargo --version)"

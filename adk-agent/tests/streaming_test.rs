@@ -245,10 +245,10 @@ async fn test_streaming_chunks() {
 
     while let Some(result) = stream.next().await {
         let event = result.unwrap();
-        if let Some(content) = event.llm_response.content {
-            if let Some(Part::Text { text }) = content.parts.first() {
-                received_chunks.push(text.clone());
-            }
+        if let Some(content) = event.llm_response.content
+            && let Some(Part::Text { text }) = content.parts.first()
+        {
+            received_chunks.push(text.clone());
         }
     }
 

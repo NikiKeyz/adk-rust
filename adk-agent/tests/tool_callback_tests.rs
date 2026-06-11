@@ -316,10 +316,10 @@ async fn test_after_tool_callback_overrides_result_and_order() {
         let event = result.unwrap();
         if let Some(content) = event.llm_response.content {
             for part in content.parts {
-                if let Part::Text { text } = part {
-                    if text == "after-override" {
-                        saw_override = true;
-                    }
+                if let Part::Text { text } = part
+                    && text == "after-override"
+                {
+                    saw_override = true;
                 }
             }
         }
@@ -353,14 +353,14 @@ async fn test_before_tool_callback_error_aborts_tool_execution() {
     let mut saw_error_response = false;
 
     while let Some(result) = stream.next().await {
-        if let Ok(event) = result {
-            if let Some(ref content) = event.llm_response.content {
-                for part in &content.parts {
-                    if let Part::FunctionResponse { function_response, .. } = part {
-                        if function_response.response.get("error").is_some() {
-                            saw_error_response = true;
-                        }
-                    }
+        if let Ok(event) = result
+            && let Some(ref content) = event.llm_response.content
+        {
+            for part in &content.parts {
+                if let Part::FunctionResponse { function_response, .. } = part
+                    && function_response.response.get("error").is_some()
+                {
+                    saw_error_response = true;
                 }
             }
         }

@@ -477,7 +477,7 @@ mod tests {
     #[test]
     fn test_session_event_seq_strictly_increasing() {
         // Simulate a sequence of events with strictly increasing seq values
-        let events = vec![
+        let events = [
             SessionEvent::StatusRunning { seq: 0 },
             SessionEvent::Message {
                 content: vec![ContentBlock::Text { text: "Hello".to_string() }],
