@@ -102,6 +102,7 @@ dependencies = [
  "adk-skill",
  "adk-telemetry",
  "adk-tool",
+ "anyhow",
  "async-stream",
  "async-trait",
  "axum 0.8.9",
