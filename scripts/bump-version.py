@@ -100,7 +100,7 @@ def main() -> None:
     # --- 2. Dependency snippets in docs / READMEs / Rust doc comments ------
     snippet_patterns = [
         # adk-rust = "1.0.0"
-        re.compile(rf'\b((?:adk|awp|cargo)-[a-z0-9-]+ = "){cur_re}(")'),
+        re.compile(rf'\b((?:adk|awp|cargo)-[a-z0-9-]+\s*=\s*"){cur_re}(")'),
         # adk-graph = { version = "1.0.0", features = [...] }
         re.compile(rf'\b((?:adk|awp|cargo)-[a-z0-9-]+ = \{{ version = "){cur_re}(")'),
     ]
