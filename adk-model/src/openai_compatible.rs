@@ -36,6 +36,8 @@ pub struct OpenAICompatibleConfig {
     /// Optional reasoning effort for OpenAI reasoning models.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<ReasoningEffort>,
+    /// Whether to allow the model to call multiple tools in a single turn.
+    pub parallel_tool_calls: bool,
 }
 
 impl OpenAICompatibleConfig {
@@ -49,6 +51,7 @@ impl OpenAICompatibleConfig {
             organization_id: None,
             project_id: None,
             reasoning_effort: None,
+            parallel_tool_calls: true,
         }
     }
 
@@ -79,6 +82,12 @@ impl OpenAICompatibleConfig {
     /// Set reasoning effort for reasoning models.
     pub fn with_reasoning_effort(mut self, effort: ReasoningEffort) -> Self {
         self.reasoning_effort = Some(effort);
+        self
+    }
+
+    /// Set whether parallel tool calls are allowed.
+    pub fn with_parallel_tool_calls(mut self, parallel_tool_calls: bool) -> Self {
+        self.parallel_tool_calls = parallel_tool_calls;
         self
     }
 
@@ -225,6 +234,7 @@ pub struct OpenAICompatible {
     retry_config: RetryConfig,
     reasoning_effort: Option<ReasoningEffort>,
     organization_id: Option<String>,
+    parallel_tool_calls: bool,
 }
 
 impl OpenAICompatible {
@@ -241,6 +251,7 @@ impl OpenAICompatible {
             retry_config: RetryConfig::default(),
             reasoning_effort: config.reasoning_effort,
             organization_id: config.organization_id,
+            parallel_tool_calls: config.parallel_tool_calls,
         })
     }
 
@@ -271,6 +282,7 @@ pub(crate) fn build_request_json(
     model: &str,
     request: &LlmRequest,
     reasoning_effort: &Option<ReasoningEffort>,
+    parallel_tool_calls: bool,
     adapter: &dyn SchemaAdapter,
     cache: &SchemaCache,
 ) -> Result<serde_json::Value, AdkError> {
@@ -282,10 +294,8 @@ pub(crate) fn build_request_json(
     if !request.tools.is_empty() {
         let tools = convert::convert_tools(&request.tools, adapter, cache);
         request_builder.tools(tools);
-        // OpenAI defaults parallel_tool_calls to true. Users can override
-        // via config.extensions["openai"]["parallel_tool_calls"] = false
-        // to force sequential tool calls from the model.
-        request_builder.parallel_tool_calls(true);
+        // OpenAI defaults parallel_tool_calls to true.
+        request_builder.parallel_tool_calls(parallel_tool_calls);
     }
 
     if let Some(effort) = reasoning_effort {
@@ -477,8 +487,14 @@ impl Llm for OpenAICompatible {
         let adapter = self.schema_adapter();
         use std::sync::LazyLock;
         static SCHEMA_CACHE: LazyLock<SchemaCache> = LazyLock::new(SchemaCache::new);
-        let request_body =
-            build_request_json(&model, &request, &reasoning_effort, adapter, &SCHEMA_CACHE)?;
+        let request_body = build_request_json(
+            &model,
+            &request,
+            &reasoning_effort,
+            self.parallel_tool_calls,
+            adapter,
+            &SCHEMA_CACHE,
+        )?;
 
         let usage_span = adk_telemetry::llm_generate_span(&provider_name, &model, stream);
 
@@ -802,6 +818,27 @@ impl Llm for OpenAICompatible {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_parallel_tool_calls_config() {
+        let config =
+            OpenAICompatibleConfig::new("test-key", "test-model").with_parallel_tool_calls(false);
+
+        assert!(!config.parallel_tool_calls, "parallel_tool_calls should be false in config");
+
+        let client = OpenAICompatible::new(config).expect("client creation failed");
+        assert!(!client.parallel_tool_calls, "parallel_tool_calls should be false in client");
+    }
+
+    #[test]
+    fn test_parallel_tool_calls_default() {
+        let config = OpenAICompatibleConfig::new("test-key", "test-model");
+
+        assert!(config.parallel_tool_calls, "parallel_tool_calls should default to true");
+
+        let client = OpenAICompatible::new(config).expect("client creation failed");
+        assert!(client.parallel_tool_calls, "parallel_tool_calls should default to true in client");
+    }
 
     #[test]
     fn gemini_preset_sets_endpoint_and_provider() {

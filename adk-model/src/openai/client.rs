@@ -186,7 +186,7 @@ impl Llm for AzureOpenAIClient {
         use std::sync::LazyLock;
         static SCHEMA_CACHE: LazyLock<SchemaCache> = LazyLock::new(SchemaCache::new);
         let request_body =
-            build_request_json(&deployment_id, &request, &None, adapter, &SCHEMA_CACHE)?;
+            build_request_json(&deployment_id, &request, &None, true, adapter, &SCHEMA_CACHE)?;
 
         let stream = try_stream! {
             let response = execute_with_retry(&retry_config, is_retryable_model_error, || {
