@@ -47,11 +47,8 @@ async fn main() -> anyhow::Result<()> {
             let provider = args.get(2).map(|s| s.as_str()).unwrap_or("openai");
             server::run_probe(provider).await?;
         }
-        "web" | _ => {
-            let port: u16 = std::env::var("PORT")
-                .ok()
-                .and_then(|p| p.parse().ok())
-                .unwrap_or(3033);
+        _ => {
+            let port: u16 = std::env::var("PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(3033);
 
             info!("starting Mindfulness with Mia on http://localhost:{port}");
             println!();

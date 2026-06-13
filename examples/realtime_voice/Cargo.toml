@@ -12,7 +12,7 @@ description = "Demonstrates ADK-Rust realtime voice capabilities with a full web
 adk-realtime = { path = "../../adk-realtime", features = ["openai", "gemini", "integration"] }
 adk-core = { path = "../../adk-core" }
 adk-session = { path = "../../adk-session" }
-adk-memory = { path = "../../adk-memory" }
+adk-memory = { path = "../../adk-memory", features = ["graph-memory"] }
 
 # Async runtime
 tokio = { version = "1.40", features = ["full"] }

@@ -8,9 +8,9 @@
 //!                                              │
 //!                                              ├─ OpenAI Realtime (gpt-realtime)  OR
 //!                                              │  Gemini Live (native audio)
-//!                                              ├─ SessionService  (transcripts)
-//!                                              ├─ MemoryService   (turn storage)
-//!                                              └─ weather tool     (auto-executed)
+//!                                              ├─ SessionService     (transcripts)
+//!                                              ├─ GraphMemoryService (bi-temporal KG)
+//!                                              └─ weather tool        (auto-executed)
 //! ```
 //!
 //! The Rust server owns the realtime session through
@@ -18,6 +18,13 @@
 //! tool execution all happen server-side — exactly what the integration layer
 //! exists for. The browser is a thin audio device: it streams microphone PCM up
 //! and plays the PCM the server streams back.
+//!
+//! **Memory is a real knowledge graph.** A single file-backed
+//! [`GraphMemoryService`] is shared across the process (axum state). Its compact
+//! *profile card* is injected into Mia's system instruction at session start, so
+//! she actually knows Shai; every completed turn is appended to the graph's
+//! episodic log; and the browser's "User Memory Insights" panel reads and writes
+//! the *same* graph over `/api/memory` — nothing on that panel is mocked.
 //!
 //! The provider is chosen per session (browser `?provider=openai|gemini`). Their
 //! audio rates differ — OpenAI is 24 kHz in/out, Gemini Live is 16 kHz in /
@@ -28,11 +35,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::{
-    Router,
-    extract::Query,
+    Json, Router,
     extract::ws::{Message, WebSocket, WebSocketUpgrade},
+    extract::{Query, State},
     response::{Html, IntoResponse},
-    routing::get,
+    routing::{get, post},
 };
 use base64::Engine;
 use futures::{SinkExt, StreamExt};
@@ -41,7 +48,7 @@ use serde_json::json;
 use tower_http::cors::CorsLayer;
 use tracing::{info, warn};
 
-use adk_memory::InMemoryMemoryService;
+use adk_memory::{CreateEntityInput, CreateRelationInput, GraphMemoryService};
 use adk_realtime::config::{RealtimeConfig, VadConfig};
 use adk_realtime::events::{ServerEvent, ToolCall};
 use adk_realtime::gemini::{GeminiLiveBackend, GeminiRealtimeModel};
@@ -96,17 +103,224 @@ impl Provider {
     }
 }
 
+/// Shared application state. One knowledge graph, shared by the realtime bridge
+/// (reads the profile card, writes episodic turns) and the `/api/memory`
+/// endpoints (the Insights panel) — so the UI and the agent see the same memory.
+#[derive(Clone)]
+struct AppState {
+    kg: Arc<GraphMemoryService>,
+}
+
 /// Run the Axum web server.
 pub async fn run_server(port: u16) -> anyhow::Result<()> {
+    // One process-wide, file-backed knowledge graph. Survives restarts so Mia
+    // remembers Shai across sessions.
+    let db = std::env::var("MIA_MEMORY_DB").unwrap_or_else(|_| "mia_memory.db".to_string());
+    let kg = GraphMemoryService::new(&format!("sqlite:{db}"))
+        .await
+        .map_err(|e| anyhow::anyhow!("memory open failed: {e}"))?;
+    kg.migrate().await.map_err(|e| anyhow::anyhow!("memory migrate failed: {e}"))?;
+    seed_profile(&kg).await?;
+    info!(db = %db, "knowledge-graph memory ready");
+
+    let state = AppState { kg: Arc::new(kg) };
+
     let app = Router::new()
         .route("/", get(serve_index))
         .route("/ws", get(ws_handler))
-        .layer(CorsLayer::permissive());
+        .route("/api/memory", get(get_memory).post(add_memory))
+        .route("/api/memory/reset", post(reset_memory))
+        .layer(CorsLayer::permissive())
+        .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
     info!("listening on 0.0.0.0:{port}");
     axum::serve(listener, app).await?;
     Ok(())
+}
+
+/// Seed Shai's baseline profile into an empty graph — the facts Mia should
+/// "already know" on first run. Idempotent: skipped once any entity exists.
+async fn seed_profile(kg: &GraphMemoryService) -> anyhow::Result<()> {
+    if kg.entity_count(APP_NAME, USER_ID).await.map_err(|e| anyhow::anyhow!("{e}"))? > 0 {
+        return Ok(());
+    }
+    info!("seeding Shai's baseline profile into the knowledge graph");
+    let entities = vec![
+        CreateEntityInput {
+            name: "Shai".into(),
+            entity_type: "person".into(),
+            observations: vec![
+                "Name is spelled S-H-A-I.".into(),
+                "Relocated to the Bay Area with family last week; house-hunting.".into(),
+            ],
+        },
+        CreateEntityInput {
+            name: "Bay Area".into(),
+            entity_type: "place".into(),
+            observations: vec!["Competitive, expensive housing market.".into()],
+        },
+        CreateEntityInput {
+            name: "Emotional State".into(),
+            entity_type: "emotion".into(),
+            observations: vec![
+                "Frustrated with the Bay Area housing market — paying just to apply feels insane."
+                    .into(),
+            ],
+        },
+        CreateEntityInput {
+            name: "Personal Background".into(),
+            entity_type: "background".into(),
+            observations: vec!["Recently relocated with family; settling in.".into()],
+        },
+        CreateEntityInput {
+            name: "Coaching Preference".into(),
+            entity_type: "preference".into(),
+            observations: vec![
+                "Extremely important to be addressed by name.".into(),
+                "Rejected somatic grounding; prefers breath awareness and cognitive reframing."
+                    .into(),
+            ],
+        },
+    ];
+    kg.create_entities(APP_NAME, USER_ID, entities).await.map_err(|e| anyhow::anyhow!("{e}"))?;
+    let relations = vec![
+        CreateRelationInput {
+            source: "Shai".into(),
+            relation_type: "located_in".into(),
+            target: "Bay Area".into(),
+        },
+        CreateRelationInput {
+            source: "Shai".into(),
+            relation_type: "feels".into(),
+            target: "Emotional State".into(),
+        },
+        CreateRelationInput {
+            source: "Shai".into(),
+            relation_type: "has_preference".into(),
+            target: "Coaching Preference".into(),
+        },
+    ];
+    kg.create_relations(APP_NAME, USER_ID, relations).await.map_err(|e| anyhow::anyhow!("{e}"))?;
+    Ok(())
+}
+
+/// Snapshot the user's whole graph as the JSON the Insights panel renders:
+/// flattened `insights` (one per current observation, newest first) plus the
+/// raw `entities` and `relations`.
+async fn graph_to_json(kg: &GraphMemoryService) -> anyhow::Result<serde_json::Value> {
+    let (entities, relations) =
+        kg.read_graph(APP_NAME, USER_ID).await.map_err(|e| anyhow::anyhow!("{e}"))?;
+
+    // One card per observation; the entity name is the category chip.
+    let mut insights: Vec<(chrono::DateTime<chrono::Utc>, serde_json::Value)> = Vec::new();
+    for e in &entities {
+        for o in &e.observations {
+            insights.push((
+                o.valid_from,
+                json!({
+                    "category": e.name.to_uppercase(),
+                    "content": o.content,
+                    "date": o.valid_from.format("%Y-%m-%d").to_string(),
+                }),
+            ));
+        }
+    }
+    insights.sort_by(|a, b| b.0.cmp(&a.0)); // newest first
+    let insights: Vec<serde_json::Value> = insights.into_iter().map(|(_, v)| v).collect();
+
+    let entities: Vec<serde_json::Value> = entities
+        .iter()
+        .map(|e| {
+            json!({
+                "name": e.name,
+                "type": e.entity_type,
+                "observations": e.observations.iter().map(|o| &o.content).collect::<Vec<_>>(),
+            })
+        })
+        .collect();
+    let relations: Vec<serde_json::Value> = relations
+        .iter()
+        .map(|r| json!({ "source": r.source, "type": r.relation_type, "target": r.target }))
+        .collect();
+
+    Ok(json!({ "insights": insights, "entities": entities, "relations": relations }))
+}
+
+/// `GET /api/memory` — the current knowledge graph for the Insights panel.
+async fn get_memory(State(state): State<AppState>) -> impl IntoResponse {
+    match graph_to_json(&state.kg).await {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => error_json(e),
+    }
+}
+
+/// Body for `POST /api/memory`: attach an observation to an entity (the
+/// selected category becomes the entity name).
+#[derive(Debug, Deserialize)]
+struct AddMemory {
+    category: String,
+    content: String,
+}
+
+/// `POST /api/memory` — record a new observation, then return the fresh graph.
+async fn add_memory(
+    State(state): State<AppState>,
+    Json(body): Json<AddMemory>,
+) -> impl IntoResponse {
+    let content = body.content.trim().to_string();
+    if content.is_empty() {
+        return error_json(anyhow::anyhow!("content is empty"));
+    }
+    let entity = body.category.trim().to_string();
+    // Append to the entity if it exists (preserves its type), else create it.
+    let added =
+        match state.kg.add_observations(APP_NAME, USER_ID, &entity, vec![content.clone()]).await {
+            Ok(_) => Ok(()),
+            Err(_) => state
+                .kg
+                .create_entities(
+                    APP_NAME,
+                    USER_ID,
+                    vec![CreateEntityInput {
+                        name: entity,
+                        entity_type: "note".into(),
+                        observations: vec![content],
+                    }],
+                )
+                .await
+                .map(|_| ()),
+        };
+    if let Err(e) = added {
+        return error_json(anyhow::anyhow!("{e}"));
+    }
+    match graph_to_json(&state.kg).await {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => error_json(e),
+    }
+}
+
+/// `POST /api/memory/reset` — wipe the user's graph and re-seed the baseline
+/// profile, then return it. ("Reset to baseline", not "delete forever".)
+async fn reset_memory(State(state): State<AppState>) -> impl IntoResponse {
+    use adk_memory::MemoryService;
+    if let Err(e) = state.kg.delete_user(APP_NAME, USER_ID).await {
+        return error_json(anyhow::anyhow!("{e}"));
+    }
+    if let Err(e) = seed_profile(&state.kg).await {
+        return error_json(e);
+    }
+    match graph_to_json(&state.kg).await {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => error_json(e),
+    }
+}
+
+/// Uniform error envelope for the `/api/memory` endpoints.
+fn error_json(e: anyhow::Error) -> axum::response::Response {
+    warn!(error = %e, "memory endpoint failed");
+    (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() })))
+        .into_response()
 }
 
 /// Serve the embedded index.html.
@@ -127,14 +341,19 @@ enum ClientMsg {
 }
 
 /// Upgrade `/ws?provider=openai|gemini` to a per-connection realtime voice bridge.
-async fn ws_handler(ws: WebSocketUpgrade, Query(params): Query<HashMap<String, String>>) -> impl IntoResponse {
+async fn ws_handler(
+    ws: WebSocketUpgrade,
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
     let provider = params.get("provider").map(|p| Provider::parse(p)).unwrap_or(Provider::OpenAI);
-    ws.on_upgrade(move |socket| handle_voice_ws(socket, provider))
+    ws.on_upgrade(move |socket| handle_voice_ws(socket, provider, state.kg))
 }
 
 /// The weather tool — runs entirely server-side; its result is sent back to the
 /// model automatically (auto_respond_tools) so Mia can speak it.
-fn weather_tool() -> FnToolHandler<impl Fn(&ToolCall) -> adk_realtime::error::Result<serde_json::Value> + Send + Sync>
+fn weather_tool()
+-> FnToolHandler<impl Fn(&ToolCall) -> adk_realtime::error::Result<serde_json::Value> + Send + Sync>
 {
     FnToolHandler::new(|call: &ToolCall| {
         let city = call.arguments.get("city").and_then(|v| v.as_str()).unwrap_or("your area");
@@ -180,21 +399,38 @@ fn build_model(provider: Provider) -> anyhow::Result<(BoxedModel, &'static str)>
 }
 
 /// Build an [`IntegratedRealtimeRunner`] for one browser session, wiring the
-/// chosen provider to in-memory session + memory services and the weather tool.
-async fn build_runner(provider: Provider, session_id: &str) -> anyhow::Result<IntegratedRealtimeRunner> {
+/// chosen provider to an in-memory session service, the **shared** knowledge
+/// graph, and the weather tool.
+///
+/// The graph's profile card is read here and baked into Mia's system
+/// instruction, so she greets Shai already knowing him. (The integration layer
+/// queries memory at connect but does not yet inject it into the instruction
+/// itself, so we do that explicitly and leave `inject_memory_context` off.)
+/// Completed turns are still appended to the graph's episodic log via
+/// `store_to_memory`.
+async fn build_runner(
+    provider: Provider,
+    session_id: &str,
+    kg: Arc<GraphMemoryService>,
+) -> anyhow::Result<IntegratedRealtimeRunner> {
     let (model, voice) = build_model(provider)?;
+
+    // Inject what we already know about the user into the system instruction.
+    let instruction = match kg.profile_card(APP_NAME, USER_ID).await {
+        Ok(card) if !card.trim().is_empty() => format!("{MIA_INSTRUCTION}\n\n{card}"),
+        _ => MIA_INSTRUCTION.to_string(),
+    };
 
     // Server VAD lets the model decide turn boundaries and auto-respond — no
     // explicit create_response needed after each user utterance.
     let config = RealtimeConfig::default()
-        .with_instruction(MIA_INSTRUCTION)
+        .with_instruction(instruction)
         .with_voice(voice)
         .with_audio_only()
         .with_vad(VadConfig::server_vad())
         .with_transcription();
 
     let session_service = Arc::new(InMemorySessionService::new());
-    let memory_service = Arc::new(InMemoryMemoryService::new());
 
     // Create the session up front so transcript persistence has a home.
     session_service
@@ -207,13 +443,18 @@ async fn build_runner(provider: Provider, session_id: &str) -> anyhow::Result<In
         .await
         .map_err(|e| anyhow::anyhow!("session create failed: {e}"))?;
 
+    // Record turns to the graph's episodic log; we inject the profile card
+    // ourselves (above), so disable the integration layer's no-op injection.
+    let integration_config =
+        IntegrationConfig { inject_memory_context: false, ..IntegrationConfig::default() };
+
     let runner = IntegratedRealtimeRunner::builder()
         .model(model)
         .config(config)
         .identity(APP_NAME, USER_ID, session_id)
         .session_service(session_service)
-        .memory_service(memory_service)
-        .integration_config(IntegrationConfig::default())
+        .memory_service(kg)
+        .integration_config(integration_config)
         .tool(get_weather_tool_def(), weather_tool())
         .build()?;
 
@@ -229,11 +470,17 @@ pub async fn run_probe(provider: &str) -> anyhow::Result<()> {
     let provider = Provider::parse(provider);
     info!(provider = provider.name(), "probe: starting");
     let session_id = uuid::Uuid::new_v4().to_string();
-    let runner = build_runner(provider, &session_id).await?;
+    // Ephemeral in-memory graph for the smoke test (no persistence needed).
+    let kg = GraphMemoryService::new("sqlite::memory:").await?;
+    kg.migrate().await?;
+    seed_profile(&kg).await?;
+    let runner = build_runner(provider, &session_id, Arc::new(kg)).await?;
     runner.connect().await?;
     info!("probe: connected; sending a weather question by text");
 
-    runner.send_text("What's the weather in Seattle right now? Answer in one short sentence.").await?;
+    runner
+        .send_text("What's the weather in Seattle right now? Answer in one short sentence.")
+        .await?;
     runner.create_response().await?;
 
     let mut audio_bytes = 0usize;
@@ -242,7 +489,8 @@ pub async fn run_probe(provider: &str) -> anyhow::Result<()> {
     let mut tool_seen = false;
 
     loop {
-        let next = tokio::time::timeout(std::time::Duration::from_secs(25), runner.next_event()).await;
+        let next =
+            tokio::time::timeout(std::time::Duration::from_secs(25), runner.next_event()).await;
         let event = match next {
             Ok(Some(Ok(ev))) => ev,
             Ok(Some(Err(e))) => {
@@ -289,22 +537,19 @@ pub async fn run_probe(provider: &str) -> anyhow::Result<()> {
         thinking = %thinking,
         "probe: complete"
     );
-    anyhow::ensure!(
-        audio_bytes > 0 || !transcript.is_empty(),
-        "no assistant output received"
-    );
+    anyhow::ensure!(audio_bytes > 0 || !transcript.is_empty(), "no assistant output received");
     Ok(())
 }
 
 /// Drive one realtime voice session: pump mic audio up, stream events/audio down.
-async fn handle_voice_ws(socket: WebSocket, provider: Provider) {
+async fn handle_voice_ws(socket: WebSocket, provider: Provider, kg: Arc<GraphMemoryService>) {
     let session_id = uuid::Uuid::new_v4().to_string();
     info!(session_id = %session_id, provider = provider.name(), "voice session starting");
 
     let (mut sender, mut receiver) = socket.split();
 
     // Build + connect the integrated runner; report failures to the browser.
-    let runner = match build_runner(provider, &session_id).await {
+    let runner = match build_runner(provider, &session_id, kg).await {
         Ok(r) => Arc::new(r),
         Err(e) => {
             warn!(error = %e, "failed to build runner");
@@ -418,7 +663,9 @@ fn server_event_to_client_json(event: ServerEvent) -> Option<serde_json::Value> 
             "type": "decision",
             "text": format!("Mia is calling {name}({arguments})"),
         })),
-        ServerEvent::Error { error, .. } => Some(json!({ "type": "error", "message": error.message })),
+        ServerEvent::Error { error, .. } => {
+            Some(json!({ "type": "error", "message": error.message }))
+        }
         _ => None,
     }
 }

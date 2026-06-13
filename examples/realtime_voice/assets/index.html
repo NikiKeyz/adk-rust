@@ -574,20 +574,8 @@
                     <span class="label">ACTIVE ENGINE MEMORY CACHE</span>
                     <span class="count" id="contextCount">0 LOADED CONTEXTS</span>
                 </div>
-                <div id="memoryItems">
-                    <div class="memory-item">
-                        <span class="tag">PERSONAL BACKGROUND:</span>
-                        <span>User's name is Shai (sp...</span>
-                    </div>
-                    <div class="memory-item">
-                        <span class="tag">COACHING PREFERENCE:</span>
-                        <span>Explicitly stated it is extr...</span>
-                    </div>
-                    <div class="memory-item">
-                        <span class="tag">COACHING PREFERENCE:</span>
-                        <span>Explicitly rejected a gro...</span>
-                    </div>
-                </div>
+                <!-- Painted from the live knowledge graph by renderMemoryCache(). -->
+                <div id="memoryItems"></div>
             </div>
 
             <div class="coaching-guidelines">
@@ -647,7 +635,7 @@
                 </div>
 
                 <h2 class="section-title">Persistent User Profile & Insights</h2>
-                <p class="section-subtitle">Learned incrementally and decided by the persistent agent pipeline.</p>
+                <p class="section-subtitle">A live, bi-temporal knowledge graph. Mia loads this profile at session start; every turn is also logged to episodic memory.</p>
 
                 <!-- Add Insight Form -->
                 <div class="add-insight-row">
@@ -712,20 +700,17 @@
     let inputRate = 24000;
     let outputRate = 24000;
 
-    const insights = [
-        { category: 'EMOTIONAL STATE', date: '2025-01-11', content: 'User Shai relocated to the Bay area with their family last week and is house hunting.' },
-        { category: 'EMOTIONAL STATE', date: '2025-01-11', content: 'User is frustrated with the Bay Area housing market. Paying to "Apply" just to see a house is insane!' },
-        { category: 'PERSONAL BACKGROUND', date: '2025-01-11', content: 'User\'s name is Shai (spelled S-H-A-I).' },
-        { category: 'COACHING PREFERENCE', date: '2025-01-12', content: 'Explicitly stated it is extremely important to be addressed by name.' },
-        { category: 'COACHING PREFERENCE', date: '2025-01-12', content: 'Explicitly rejected a grounding exercise suggestion, indicating a preference away from somatic grounding.' },
-    ];
+    // The User Memory Insights panel is backed by the server's knowledge graph
+    // (GET/POST /api/memory). `insights` mirrors the graph's current
+    // observations — the same memory Mia loads as her profile card at session
+    // start. Populated by loadMemory(); never hardcoded.
+    let insights = [];
 
     // ─── Init ────────────────────────────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', () => {
-        renderInsights();
+        loadMemory();
         updateClock();
         setInterval(updateClock, 1000);
-        updateContextCount();
     });
 
     function updateClock() {
@@ -738,30 +723,74 @@
         document.getElementById('contextCount').textContent = `${insights.length} LOADED CONTEXTS`;
     }
 
-    // ─── Render Insights ─────────────────────────────────────────────────────
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, c =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    // ─── Memory (knowledge graph) ────────────────────────────────────────────
+    // Pull the live graph from the server and paint both the Insights panel and
+    // the left-hand "active engine memory cache".
+    async function loadMemory() {
+        try {
+            const res = await fetch('/api/memory');
+            if (!res.ok) throw new Error(`memory fetch failed: ${res.status}`);
+            const data = await res.json();
+            insights = data.insights || [];
+            renderInsights();
+            renderMemoryCache();
+            updateContextCount();
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
     function renderInsights() {
         const grid = document.getElementById('insightsGrid');
         grid.innerHTML = insights.map(i => `
             <div class="insight-card">
-                <div class="category">${i.category}</div>
-                <div class="date">${i.date}</div>
-                <div class="content">${i.content}</div>
+                <div class="category">${escapeHtml(i.category)}</div>
+                <div class="date">${escapeHtml(i.date)}</div>
+                <div class="content">${escapeHtml(i.content)}</div>
             </div>
         `).join('');
     }
 
-    function addInsight() {
+    // Left-panel cache mirrors the same graph (top few current facts).
+    function renderMemoryCache() {
+        const box = document.getElementById('memoryItems');
+        box.innerHTML = insights.slice(0, 6).map(i => `
+            <div class="memory-item">
+                <span class="tag">${escapeHtml(i.category)}:</span>
+                <span>${escapeHtml(i.content)}</span>
+            </div>
+        `).join('');
+    }
+
+    // Write a new observation to the graph; the selected category is the entity
+    // it attaches to. The server returns the refreshed graph.
+    async function addInsight() {
         const input = document.getElementById('insightInput');
         const category = document.getElementById('insightCategory');
         if (!input.value.trim()) return;
-        insights.unshift({
-            category: category.value.toUpperCase(),
-            date: new Date().toISOString().slice(0, 10),
-            content: input.value.trim()
-        });
-        input.value = '';
-        renderInsights();
-        updateContextCount();
+        try {
+            const res = await fetch('/api/memory', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ category: category.value, content: input.value.trim() }),
+            });
+            if (!res.ok) throw new Error(`add failed: ${res.status}`);
+            const data = await res.json();
+            insights = data.insights || [];
+            input.value = '';
+            renderInsights();
+            renderMemoryCache();
+            updateContextCount();
+            addDecision(`Wrote a fact to the knowledge graph under "${category.value}".`);
+        } catch (e) {
+            console.error(e);
+            addDecision('Failed to write to the knowledge graph.');
+        }
     }
 
     // ─── Tab Switching ───────────────────────────────────────────────────────
@@ -1038,12 +1067,21 @@
         addDecision('Guidelines configuration opened.');
     }
 
-    function resetSystem() {
-        if (confirm('Reset all memory and insights?')) {
-            insights.length = 0;
+    // Wipe the user's graph and re-seed the baseline profile (server-side).
+    async function resetSystem() {
+        if (!confirm('Reset memory to the seeded baseline profile?')) return;
+        try {
+            const res = await fetch('/api/memory/reset', { method: 'POST' });
+            if (!res.ok) throw new Error(`reset failed: ${res.status}`);
+            const data = await res.json();
+            insights = data.insights || [];
             renderInsights();
+            renderMemoryCache();
             updateContextCount();
-            addDecision('System reset. All memory contexts cleared.');
+            addDecision('Memory reset to the seeded baseline profile.');
+        } catch (e) {
+            console.error(e);
+            addDecision('Failed to reset memory.');
         }
     }
 
