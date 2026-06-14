@@ -48,7 +48,7 @@ use serde_json::json;
 use tower_http::cors::CorsLayer;
 use tracing::{info, warn};
 
-use adk_memory::{CreateEntityInput, CreateRelationInput, GraphMemoryService};
+use adk_memory::{CreateEntityInput, GraphMemoryService};
 use adk_realtime::config::{RealtimeConfig, VadConfig};
 use adk_realtime::events::{ServerEvent, ToolCall};
 use adk_realtime::gemini::{GeminiLiveBackend, GeminiRealtimeModel};
@@ -151,57 +151,26 @@ pub async fn run_server(port: u16) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Seed Shai's baseline profile into an empty graph — the facts Mia should
-/// "already know" on first run. Idempotent: skipped once any entity exists.
+/// Seed Mia's baseline **coaching guidelines** into an empty graph. These are
+/// part of Mia's coaching definition (alongside her persona in `MIA_INSTRUCTION`),
+/// so she starts with them. The user's *personal* facts are intentionally **not**
+/// seeded — Mia learns those during conversation. Idempotent: skipped once any
+/// entity exists.
 async fn seed_profile(kg: &GraphMemoryService) -> anyhow::Result<()> {
     if kg.entity_count(APP_NAME, USER_ID).await.map_err(|e| anyhow::anyhow!("{e}"))? > 0 {
         return Ok(());
     }
-    info!("seeding Shai's baseline profile into the knowledge graph");
-    let entities = vec![
-        CreateEntityInput {
-            name: "Shai".into(),
-            entity_type: "person".into(),
-            observations: vec![
-                "Name is spelled S-H-A-I.".into(),
-                "Relocated to the Bay Area with family last week; house-hunting.".into(),
-            ],
-        },
-        CreateEntityInput {
-            name: "Bay Area".into(),
-            entity_type: "place".into(),
-            observations: vec!["Competitive, expensive housing market.".into()],
-        },
-        CreateEntityInput {
-            name: "Emotional State".into(),
-            entity_type: "emotion".into(),
-            observations: vec![
-                "Frustrated with the Bay Area housing market — paying just to apply feels insane."
-                    .into(),
-            ],
-        },
-        CreateEntityInput {
-            name: "Personal Background".into(),
-            entity_type: "background".into(),
-            observations: vec!["Recently relocated with family; settling in.".into()],
-        },
-        // Coaching guidelines/strategy are intentionally NOT seeded — they start
-        // empty and are populated via "Configure Guidelines" (or learned).
-    ];
+    info!("seeding Mia's baseline coaching guidelines into the knowledge graph");
+    let entities = vec![CreateEntityInput {
+        name: "Coaching Preference".into(),
+        entity_type: "preference".into(),
+        observations: vec![
+            "Extremely important to be addressed by name.".into(),
+            "Rejected somatic grounding; prefers breath awareness and cognitive reframing.".into(),
+        ],
+    }];
     kg.create_entities(APP_NAME, USER_ID, entities).await.map_err(|e| anyhow::anyhow!("{e}"))?;
-    let relations = vec![
-        CreateRelationInput {
-            source: "Shai".into(),
-            relation_type: "located_in".into(),
-            target: "Bay Area".into(),
-        },
-        CreateRelationInput {
-            source: "Shai".into(),
-            relation_type: "feels".into(),
-            target: "Emotional State".into(),
-        },
-    ];
-    kg.create_relations(APP_NAME, USER_ID, relations).await.map_err(|e| anyhow::anyhow!("{e}"))?;
+    // No user facts or relations are seeded — Mia learns those as you talk to her.
     Ok(())
 }
 
