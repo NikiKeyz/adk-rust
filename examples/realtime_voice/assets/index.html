@@ -682,8 +682,8 @@
             </div>
 
             <div class="coaching-guidelines">
-                <div class="header">ACTIVE COACHING GUIDELINES LOADED:</div>
-                <div class="item">• Always address the user by name (Shai, spelled S-H-A-I), ensuring it is inte...</div>
+                <div class="header">ACTIVE COACHING GUIDELINES:</div>
+                <div id="guidelinesList"></div>
             </div>
 
             <!-- Status -->
@@ -862,10 +862,24 @@
             insights = data.insights || [];
             renderInsights();
             renderMemoryCache();
+            renderGuidelines(data.entities || []);
             updateContextCount();
         } catch (e) {
             console.error(e);
         }
+    }
+
+    // The agent's coaching guidelines ARE the "Coaching Preference" entity in the
+    // graph — the same observations injected into Mia's instruction at session
+    // start. Render them from the live graph (no static text).
+    function renderGuidelines(entities) {
+        const box = document.getElementById('guidelinesList');
+        if (!box) return;
+        const pref = entities.find(e => (e.name || '').toLowerCase() === 'coaching preference');
+        const items = (pref && pref.observations) || [];
+        box.innerHTML = items.length
+            ? items.map(o => `<div class="item">• ${escapeHtml(o)}</div>`).join('')
+            : '<div class="item" style="color:var(--faint)">None yet — add one with “Configure Guidelines”.</div>';
     }
 
     function renderInsights() {
@@ -908,6 +922,7 @@
             input.value = '';
             renderInsights();
             renderMemoryCache();
+            renderGuidelines(data.entities || []);
             updateContextCount();
             addDecision(`Wrote a fact to the knowledge graph under "${category.value}".`);
         } catch (e) {
@@ -1187,8 +1202,29 @@
         addDecision('Session ended.');
     }
 
-    function configureGuidelines() {
-        addDecision('Guidelines configuration opened.');
+    // Add a coaching guideline → stored as a "Coaching Preference" observation in
+    // the graph, so Mia honors it (it lands in her profile card next session).
+    async function configureGuidelines() {
+        const g = prompt('Add a coaching guideline for Mia (she will follow it from the next session):');
+        if (!g || !g.trim()) return;
+        try {
+            const res = await fetch('/api/memory', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ category: 'Coaching Preference', content: g.trim() }),
+            });
+            if (!res.ok) throw new Error(`save failed: ${res.status}`);
+            const data = await res.json();
+            insights = data.insights || [];
+            renderInsights();
+            renderMemoryCache();
+            renderGuidelines(data.entities || []);
+            updateContextCount();
+            addDecision(`Added coaching guideline: "${g.trim()}"`);
+        } catch (e) {
+            console.error(e);
+            addDecision('Failed to save guideline.');
+        }
     }
 
     // Wipe the user's graph and re-seed the baseline profile (server-side).
@@ -1201,6 +1237,7 @@
             insights = data.insights || [];
             renderInsights();
             renderMemoryCache();
+            renderGuidelines(data.entities || []);
             updateContextCount();
             addDecision('Memory reset to the seeded baseline profile.');
         } catch (e) {
