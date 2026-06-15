@@ -373,6 +373,12 @@ impl GeminiRealtimeSession {
             generation_config["temperature"] = json!(temp);
         }
 
+        // Emotion-aware ("affective") dialog — a generationConfig field, honored
+        // by native-audio models on the v1alpha endpoint.
+        if config.affective_dialog == Some(true) {
+            generation_config["enableAffectiveDialog"] = json!(true);
+        }
+
         if let Some(extra) = &config.extra
             && let Some(thinking_level) = extra.get("thinking_level")
             && let Some(obj) = generation_config.as_object_mut()
@@ -1142,6 +1148,13 @@ mod tests {
             setup_json.get("model").expect("model missing from setup payload").as_str().unwrap(),
             "models/gemini-2.5-flash-native-audio-latest"
         );
+    }
+
+    #[test]
+    fn test_affective_dialog_builder_sets_config() {
+        let c = RealtimeConfig::default().with_affective_dialog(true);
+        assert_eq!(c.affective_dialog, Some(true));
+        assert_eq!(RealtimeConfig::default().affective_dialog, None);
     }
 
     #[test]
