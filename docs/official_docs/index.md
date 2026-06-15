@@ -60,6 +60,16 @@ A dedicated, newcomer-friendly guide to building voice + multimodal agents — a
 - [Sessions](sessions/sessions.md) - Session management and lifecycle
 - [State Management](sessions/state.md) - Managing conversation state with prefixes
 
+## Memory
+
+Long-term memory that outlives a session — the persistent counterpart to session state. A dedicated, newcomer-friendly guide to both the semantic store and the bi-temporal knowledge graph.
+
+- [Overview](memory/index.md) - Start here: the two kinds of memory, the mental model, install, and a quick start
+- [Concepts](memory/concepts.md) - `MemoryEntry`, the `MemoryService` trait, search, project scoping, GDPR erasure
+- [Backends](memory/backends.md) - The six stores (InMemory, SQLite, Postgres+pgvector, Redis, MongoDB, Neo4j) and how to choose
+- [Knowledge Graph](memory/knowledge-graph.md) - `GraphMemoryService`: entities, observations, relations, and why bi-temporal matters
+- [Tools & Agents](memory/tools-and-agents.md) - Wiring memory into agents; `remember`/`relate` and the memory tools
+
 ## Callbacks & Events
 
 - [Callbacks](callbacks/callbacks.md) - Intercept and customize agent behavior

@@ -38,6 +38,10 @@ bridged `remember`/`relate` tools. A live "User Memory Insights" panel reads and
 writes the *same* graph over `/api/memory`. Also shows a server-side `get_weather`
 tool.
 
+| Light | Dark |
+|-------|------|
+| ![Mindfulness with Mia — light theme](images/mia-light.png) | ![Mindfulness with Mia — dark theme](images/mia-dark.png) |
+
 ```bash
 cargo run --manifest-path examples/realtime_voice/Cargo.toml
 # → http://localhost:3033
@@ -61,6 +65,10 @@ three-column UI. It combines everything:
 - **[Affective dialogue](affective-dialogue.md)** — empathetic on both backends;
   `CS_AFFECTIVE=1` switches Gemini to the native-audio model for true
   tone-matching.
+
+| Light | Dark |
+|-------|------|
+| ![Customer Service Agent — light theme](images/customer-service-light.png) | ![Customer Service Agent — dark theme](images/customer-service-dark.png) |
 
 ```bash
 cargo run --manifest-path examples/customer_service/Cargo.toml
@@ -86,6 +94,10 @@ providers' **translation models** — OpenAI `gpt-realtime-translate` and Gemini
 `gemini-3.5-live-translate-preview` — which speak a different protocol than the
 conversational models. Pick a target language in the UI; the server negotiates
 per-provider audio rates before audio flows.
+
+| Light | Dark |
+|-------|------|
+| ![Live Translation — light theme](images/translation-light.png) | ![Live Translation — dark theme](images/translation-dark.png) |
 
 ```bash
 cargo run --manifest-path examples/live_translation/Cargo.toml
