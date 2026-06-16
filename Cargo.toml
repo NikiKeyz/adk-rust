@@ -25,6 +25,7 @@ members = [
     "adk-rust",
     "adk-gemini",
     "adk-code",
+    "adk-devtools",
     "adk-sandbox",
     "adk-rag",
     "adk-audio",
@@ -172,6 +173,7 @@ adk-plugin = { path = "adk-plugin", version = "1.1.0" }
 adk-skill = { path = "adk-skill", version = "1.1.0" }
 adk-gemini = { path = "adk-gemini", version = "1.1.0" }
 adk-code = { path = "adk-code", version = "1.1.0" }
+adk-devtools = { path = "adk-devtools", version = "1.1.0" }
 adk-sandbox = { path = "adk-sandbox", version = "1.1.0" }
 adk-rag = { path = "adk-rag", version = "1.1.0" }
 adk-audio = { path = "adk-audio", version = "1.1.0" }

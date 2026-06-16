@@ -1,0 +1,29 @@
+[package]
+name = "adk-devtools"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Developer tools (read/write/edit/grep/glob/bash) for ADK-Rust coding agents, scoped to a sandboxed workspace"
+repository.workspace = true
+documentation = "https://docs.rs/adk-devtools"
+readme = "README.md"
+keywords = ["adk", "agent", "coding", "tools", "filesystem"]
+categories = ["development-tools", "asynchronous"]
+
+[dependencies]
+adk-core.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tokio = { workspace = true, features = ["fs", "process", "time", "io-util", "rt", "macros"] }
+regex.workspace = true
+walkdir = "2.5"
+glob = "0.3"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { workspace = true, features = ["full"] }

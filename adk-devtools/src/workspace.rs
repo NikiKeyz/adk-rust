@@ -1,0 +1,178 @@
+//! The sandboxed workspace that scopes every developer-tool operation.
+
+use std::collections::HashSet;
+use std::path::{Component, Path, PathBuf};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use crate::error::DevToolError;
+
+/// A workspace roots every file/search/shell operation at a directory and
+/// enforces a small capability policy.
+///
+/// All paths supplied to the tools are resolved relative to [`root`](Self::root)
+/// and rejected if they escape it. Mutating operations require
+/// [`is_writable`](Self::is_writable); `bash` requires [`bash_allowed`](Self::bash_allowed).
+///
+/// The workspace also carries a small amount of shared session state — the set
+/// of files that have been read — so that `edit_file` can require a prior
+/// `read_file` (guarding against blind overwrites).
+///
+/// `Workspace` is cheap to clone; clones share the read-tracking state.
+#[derive(Clone)]
+pub struct Workspace {
+    root: PathBuf,
+    writable: bool,
+    allow_bash: bool,
+    bash_timeout: Duration,
+    max_output_bytes: usize,
+    read_tracker: Arc<Mutex<HashSet<PathBuf>>>,
+}
+
+impl Workspace {
+    /// Create a read-write workspace rooted at `root` (bash enabled).
+    ///
+    /// If `root` exists it is canonicalized so containment checks are robust.
+    pub fn new(root: impl Into<PathBuf>) -> Self {
+        let root = root.into();
+        let root = std::fs::canonicalize(&root).unwrap_or(root);
+        Self {
+            root,
+            writable: true,
+            allow_bash: true,
+            bash_timeout: Duration::from_secs(120),
+            max_output_bytes: 1_048_576,
+            read_tracker: Arc::new(Mutex::new(HashSet::new())),
+        }
+    }
+
+    /// Create a read-only workspace (no writes, no bash) — useful for
+    /// exploration / plan modes.
+    pub fn read_only(root: impl Into<PathBuf>) -> Self {
+        let mut ws = Self::new(root);
+        ws.writable = false;
+        ws.allow_bash = false;
+        ws
+    }
+
+    /// Set whether mutating file operations are permitted.
+    pub fn writable(mut self, yes: bool) -> Self {
+        self.writable = yes;
+        self
+    }
+
+    /// Set whether the `bash` tool is permitted.
+    pub fn allow_bash(mut self, yes: bool) -> Self {
+        self.allow_bash = yes;
+        self
+    }
+
+    /// Set the default timeout applied to `bash` commands.
+    pub fn bash_timeout(mut self, timeout: Duration) -> Self {
+        self.bash_timeout = timeout;
+        self
+    }
+
+    /// Set the maximum number of bytes captured from a stream before truncation.
+    pub fn max_output_bytes(mut self, bytes: usize) -> Self {
+        self.max_output_bytes = bytes;
+        self
+    }
+
+    /// The workspace root.
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// Whether mutating file operations are permitted.
+    pub fn is_writable(&self) -> bool {
+        self.writable
+    }
+
+    /// Whether the `bash` tool is permitted.
+    pub fn bash_allowed(&self) -> bool {
+        self.allow_bash
+    }
+
+    /// The default `bash` timeout.
+    pub fn bash_timeout_value(&self) -> Duration {
+        self.bash_timeout
+    }
+
+    /// The output-capture cap.
+    pub fn max_output(&self) -> usize {
+        self.max_output_bytes
+    }
+
+    /// Resolve a user-supplied path against the root, rejecting any path that
+    /// escapes it (lexically). The target need not exist yet.
+    pub fn resolve(&self, path: &str) -> Result<PathBuf, DevToolError> {
+        let requested = Path::new(path);
+        let joined = if requested.is_absolute() {
+            requested.to_path_buf()
+        } else {
+            self.root.join(requested)
+        };
+        let normalized = normalize(&joined);
+        if !normalized.starts_with(&self.root) {
+            return Err(DevToolError::PathEscape(path.to_string()));
+        }
+        Ok(normalized)
+    }
+
+    /// Render a path relative to the root for display (falls back to the full path).
+    pub fn display(&self, path: &Path) -> String {
+        path.strip_prefix(&self.root).unwrap_or(path).display().to_string()
+    }
+
+    /// Record that a file has been read this session.
+    pub(crate) fn mark_read(&self, path: &Path) {
+        if let Ok(mut set) = self.read_tracker.lock() {
+            set.insert(path.to_path_buf());
+        }
+    }
+
+    /// Whether a file has been read this session.
+    pub(crate) fn was_read(&self, path: &Path) -> bool {
+        self.read_tracker.lock().map(|set| set.contains(path)).unwrap_or(false)
+    }
+}
+
+/// Lexically normalize a path, resolving `.` and `..` without touching the
+/// filesystem (so non-existent targets still normalize).
+fn normalize(path: &Path) -> PathBuf {
+    let mut out = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::ParentDir => {
+                out.pop();
+            }
+            Component::CurDir => {}
+            other => out.push(other.as_os_str()),
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_escape() {
+        let dir = tempfile::tempdir().unwrap();
+        let ws = Workspace::new(dir.path());
+        assert!(ws.resolve("../etc/passwd").is_err());
+        assert!(ws.resolve("ok/file.rs").is_ok());
+    }
+
+    #[test]
+    fn read_tracking() {
+        let dir = tempfile::tempdir().unwrap();
+        let ws = Workspace::new(dir.path());
+        let p = ws.resolve("a.txt").unwrap();
+        assert!(!ws.was_read(&p));
+        ws.mark_read(&p);
+        assert!(ws.was_read(&p));
+    }
+}

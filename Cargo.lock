@@ -387,6 +387,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "adk-devtools"
+version = "1.1.0"
+dependencies = [
+ "adk-core",
+ "async-trait",
+ "glob",
+ "regex",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "walkdir",
+]
+
+[[package]]
 name = "adk-enterprise"
 version = "1.1.0"
 dependencies = [

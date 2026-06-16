@@ -1,0 +1,90 @@
+//! `glob` — list workspace files matching a glob pattern.
+
+use std::sync::Arc;
+
+use adk_core::{Result, Tool, ToolContext};
+use async_trait::async_trait;
+use serde_json::{Value, json};
+
+use crate::error::DevToolError;
+use crate::tools::read::require_str;
+use crate::workspace::Workspace;
+
+const MAX_RESULTS: usize = 1000;
+
+/// Lists files matching a glob pattern (e.g. `src/**/*.rs`), relative to the
+/// workspace root or an optional sub-directory.
+pub struct GlobTool {
+    workspace: Workspace,
+}
+
+impl GlobTool {
+    /// Create a `glob` tool bound to `workspace`.
+    pub fn new(workspace: Workspace) -> Self {
+        Self { workspace }
+    }
+}
+
+#[async_trait]
+impl Tool for GlobTool {
+    fn name(&self) -> &str {
+        "glob"
+    }
+
+    fn description(&self) -> &str {
+        "List files matching a glob pattern (e.g. 'src/**/*.rs'). Returns paths \
+         relative to the workspace root."
+    }
+
+    fn is_read_only(&self) -> bool {
+        true
+    }
+
+    fn is_concurrency_safe(&self) -> bool {
+        true
+    }
+
+    fn parameters_schema(&self) -> Option<Value> {
+        Some(json!({
+            "type": "object",
+            "properties": {
+                "pattern": { "type": "string", "description": "Glob pattern, e.g. '**/*.toml'." },
+                "path": { "type": "string", "description": "Optional sub-directory to search within." }
+            },
+            "required": ["pattern"]
+        }))
+    }
+
+    async fn execute(&self, _ctx: Arc<dyn ToolContext>, args: Value) -> Result<Value> {
+        let pattern = require_str(&args, "pattern")?;
+        let base = match args.get("path").and_then(Value::as_str) {
+            Some(sub) => self.workspace.resolve(sub)?,
+            None => self.workspace.root().to_path_buf(),
+        };
+
+        let full = format!("{}/{}", base.display(), pattern);
+        let entries = glob::glob(&full)
+            .map_err(|e| DevToolError::Other(format!("invalid glob pattern: {e}")))?;
+
+        let mut matches = Vec::new();
+        let mut truncated = false;
+        for entry in entries {
+            let path = match entry {
+                Ok(p) => p,
+                Err(_) => continue,
+            };
+            if matches.len() >= MAX_RESULTS {
+                truncated = true;
+                break;
+            }
+            matches.push(self.workspace.display(&path));
+        }
+
+        Ok(json!({
+            "pattern": pattern,
+            "matches": matches,
+            "count": matches.len(),
+            "truncated": truncated,
+        }))
+    }
+}
