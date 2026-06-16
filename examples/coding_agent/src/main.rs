@@ -17,6 +17,8 @@
 //! Requires `GOOGLE_API_KEY` (default, Gemini) — or set `CODING_PROVIDER=openai`
 //! with `OPENAI_API_KEY`. Override the model with `CODING_MODEL`.
 
+mod scenarios;
+
 use std::sync::Arc;
 
 use adk_agent::coding::CodingAgent;
@@ -42,12 +44,69 @@ async fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.as_slice() {
         [] => demo().await,
+        [one] if one == "tour" => tour().await,
+        [one] if scenarios::find(one).is_some() => run_named_scenario(one).await,
         [dir, task] => single(dir, task).await,
         _ => {
-            eprintln!("usage: coding_agent [<dir> <task>]   (no args = multi-language demo)");
+            eprintln!(
+                "usage:\n  coding_agent                 # multi-language demo\n  \
+                 coding_agent tour            # run all scenarios (increasing complexity)\n  \
+                 coding_agent <scenario>      # one of: {}\n  \
+                 coding_agent <dir> <task>    # a single task in a directory",
+                scenarios::all().iter().map(|s| s.name).collect::<Vec<_>>().join(", ")
+            );
             std::process::exit(2);
         }
     }
+}
+
+/// Run every scenario in order, verifying each, and print a summary.
+async fn tour() -> anyhow::Result<()> {
+    let model = build_model()?;
+    println!("ADK-Rust CodingAgent — scenario tour (increasing complexity)\n");
+
+    let mut results: Vec<(&str, bool)> = Vec::new();
+    for sc in scenarios::all() {
+        let passed = run_scenario(model.clone(), &sc).await?;
+        results.push((sc.name, passed));
+    }
+
+    println!("\n══ summary ══");
+    for (name, passed) in &results {
+        println!("  {} {name}", if *passed { "✅ PASS" } else { "❌ FAIL" });
+    }
+    let failed = results.iter().filter(|(_, p)| !*p).count();
+    if failed > 0 {
+        std::process::exit(1);
+    }
+    Ok(())
+}
+
+/// Run a single named scenario.
+async fn run_named_scenario(name: &str) -> anyhow::Result<()> {
+    let model = build_model()?;
+    let sc = scenarios::find(name).expect("scenario exists");
+    let passed = run_scenario(model, &sc).await?;
+    if !passed {
+        std::process::exit(1);
+    }
+    Ok(())
+}
+
+/// Set up a scenario's fixture, run the agent, then verify independently.
+async fn run_scenario(model: Arc<dyn Llm>, sc: &scenarios::Scenario) -> anyhow::Result<bool> {
+    let dir = tempfile::tempdir()?;
+    (sc.setup)(dir.path())?;
+
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("  {} — {}", sc.name, sc.blurb);
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    run_task(model, Workspace::new(dir.path()), sc.name, sc.task).await?;
+
+    let (passed, detail) = (sc.verify)(dir.path());
+    println!("  {} verify: {detail}", if passed { "✅" } else { "❌" });
+    println!();
+    Ok(passed)
 }
 
 /// Build the configured model from the environment.

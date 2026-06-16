@@ -12,8 +12,38 @@ workspace**.
 # Multi-language demo (Rust, Python, JavaScript) in a temp workspace:
 cargo run --manifest-path examples/coding_agent/Cargo.toml
 
+# Scenario tour — real agent, increasing complexity, each independently verified:
+cargo run --manifest-path examples/coding_agent/Cargo.toml -- tour
+
+# A single scenario (hello | multifile | fixtest | debug | refactor):
+cargo run --manifest-path examples/coding_agent/Cargo.toml -- fixtest
+
 # A single task in a directory you choose:
 cargo run --manifest-path examples/coding_agent/Cargo.toml -- ./some/dir "make the failing test pass"
+```
+
+## The scenario tour
+
+`tour` runs a progression of tasks of increasing complexity. Each one sets up a
+fixture, lets the **real** agent work, then **independently verifies** the result
+by running the produced code — no mocks:
+
+| Scenario | Demonstrates |
+|----------|--------------|
+| `hello` | Write a single file (no execution). |
+| `multifile` | Create a 2-file program and run it (`40 + 2 → 42`). |
+| `fixtest` | Read a failing test, find the bug, fix it, re-run until green. |
+| `debug` | Run a crashing script, read the traceback, fix the runtime error. |
+| `refactor` | Rename a symbol across files and confirm it still runs. |
+
+Example (the `fixtest` read–modify–test loop, abridged):
+
+```text
+  🔧 bash({"command":"python3 test_calc.py"})        ↩ exit 1 (AssertionError)
+  🔧 read_file({"path":"calc.py"})                   ↩ "return a - b"
+  🔧 edit_file({"old_string":"return a - b","new_string":"return a + b", …})
+  🔧 bash({"command":"python3 test_calc.py"})        ↩ exit 0, "tests passed"
+  ✅ verify: tests exit Some(0), stdout "tests passed"
 ```
 
 Requires `GOOGLE_API_KEY` (default, Gemini 3) — or set `CODING_PROVIDER=openai`
