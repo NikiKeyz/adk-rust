@@ -12,6 +12,9 @@ workspace**.
 # Multi-language demo (Rust, Python, JavaScript) in a temp workspace:
 cargo run --manifest-path examples/coding_agent/Cargo.toml
 
+# Multi-turn build — grow a medium program over several turns in one session:
+cargo run --manifest-path examples/coding_agent/Cargo.toml -- multiturn
+
 # Scenario tour — real agent, increasing complexity, each independently verified:
 cargo run --manifest-path examples/coding_agent/Cargo.toml -- tour
 
@@ -21,6 +24,24 @@ cargo run --manifest-path examples/coding_agent/Cargo.toml -- fixtest
 # A single task in a directory you choose:
 cargo run --manifest-path examples/coding_agent/Cargo.toml -- ./some/dir "make the failing test pass"
 ```
+
+## The multi-turn build
+
+`multiturn` keeps **one agent, one runner, one session** and sends a sequence of
+follow-up requests, so the agent builds on its own prior work (the session
+history persists across turns). It grows a Python `todo` CLI from nothing into a
+working, tested program:
+
+1. `add` / `list` (JSON-persisted tasks)
+2. `done <index>` (with `[x]`/`[ ]` markers)
+3. `rm <index>`
+4. robust error handling + usage/exit codes
+5. a `test_todo.py` (subprocess tests) — run until it passes
+
+Then the example **independently verifies** the result by running
+`python3 test_todo.py`. A typical run produces ~140 lines across `todo.py` +
+`test_todo.py`, all tests green — and you can watch later turns `read_file` the
+existing code and `edit_file` it rather than starting over.
 
 ## The scenario tour
 

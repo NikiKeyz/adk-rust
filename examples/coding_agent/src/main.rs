@@ -22,7 +22,7 @@ mod scenarios;
 use std::sync::Arc;
 
 use adk_agent::coding::CodingAgent;
-use adk_core::{Content, Llm, Part, SessionId, UserId};
+use adk_core::{Agent, Content, Llm, Part, SessionId, UserId};
 use adk_devtools::Workspace;
 use adk_model::GeminiModel;
 use adk_runner::Runner;
@@ -44,12 +44,14 @@ async fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.as_slice() {
         [] => demo().await,
+        [one] if one == "multiturn" || one == "build" => multiturn().await,
         [one] if one == "tour" => tour().await,
         [one] if scenarios::find(one).is_some() => run_named_scenario(one).await,
         [dir, task] => single(dir, task).await,
         _ => {
             eprintln!(
                 "usage:\n  coding_agent                 # multi-language demo\n  \
+                 coding_agent multiturn       # build a medium program over several turns\n  \
                  coding_agent tour            # run all scenarios (increasing complexity)\n  \
                  coding_agent <scenario>      # one of: {}\n  \
                  coding_agent <dir> <task>    # a single task in a directory",
@@ -131,15 +133,8 @@ fn build_model() -> anyhow::Result<Arc<dyn Llm>> {
     }
 }
 
-/// Run one task against a workspace directory and stream the agent's work.
-async fn run_task(
-    model: Arc<dyn Llm>,
-    workspace: Workspace,
-    session_id: &str,
-    task: &str,
-) -> anyhow::Result<()> {
-    let coding = CodingAgent::builder().model(model).workspace(workspace).build()?;
-
+/// Build a Runner over the agent with a fresh in-memory session.
+async fn make_runner(agent: Arc<dyn Agent>, session_id: &str) -> anyhow::Result<Runner> {
     let sessions: Arc<dyn SessionService> = Arc::new(InMemorySessionService::new());
     sessions
         .create(CreateRequest {
@@ -149,18 +144,17 @@ async fn run_task(
             state: Default::default(),
         })
         .await?;
+    Ok(Runner::builder().app_name(APP_NAME).agent(agent).session_service(sessions).build()?)
+}
 
-    let runner = Runner::builder()
-        .app_name(APP_NAME)
-        .agent(coding.agent())
-        .session_service(sessions)
-        .build()?;
-
+/// Run one turn on an existing runner/session and stream the agent's work.
+/// Reusing the same `session_id` across turns preserves conversation history.
+async fn run_turn(runner: &Runner, session_id: &str, prompt: &str) -> anyhow::Result<()> {
     let mut stream = runner
         .run(
             UserId::new("user")?,
             SessionId::new(session_id)?,
-            Content::new("user").with_text(task),
+            Content::new("user").with_text(prompt),
         )
         .await?;
 
@@ -194,7 +188,11 @@ async fn run_task(
     if !saw_anything {
         println!("  ⚠️  the model returned an empty turn (no tools, no text)");
     }
+    Ok(())
+}
 
+/// Print the agent's current plan (todo list), if any.
+fn print_plan(coding: &CodingAgent) {
     let todos = coding.todos();
     if !todos.is_empty() {
         println!("  📋 plan:");
@@ -207,6 +205,19 @@ async fn run_task(
             println!("     {mark} {}", t.content);
         }
     }
+}
+
+/// Run one task against a workspace directory in a fresh session.
+async fn run_task(
+    model: Arc<dyn Llm>,
+    workspace: Workspace,
+    session_id: &str,
+    task: &str,
+) -> anyhow::Result<()> {
+    let coding = CodingAgent::builder().model(model).workspace(workspace).build()?;
+    let runner = make_runner(coding.agent(), session_id).await?;
+    run_turn(&runner, session_id, task).await?;
+    print_plan(&coding);
     Ok(())
 }
 
@@ -252,6 +263,88 @@ async fn demo() -> anyhow::Result<()> {
         println!("  - {}", entry.file_name().to_string_lossy());
     }
     Ok(())
+}
+
+/// Multi-turn build: one persistent session in which the agent grows a
+/// medium-sized program (a Python `todo` CLI) over several turns, then we
+/// independently verify the result by exercising the CLI and running its tests.
+async fn multiturn() -> anyhow::Result<()> {
+    let model = build_model()?;
+    let dir = tempfile::tempdir()?;
+    let session_id = "build";
+
+    // ONE agent, ONE runner, ONE session — history persists across turns.
+    let coding =
+        CodingAgent::builder().model(model).workspace(Workspace::new(dir.path())).build()?;
+    let runner = make_runner(coding.agent(), session_id).await?;
+
+    println!("ADK-Rust CodingAgent — multi-turn build (a Python todo CLI)");
+    println!("workspace: {}\n", dir.path().display());
+
+    let turns: &[&str] = &[
+        "Start a command-line todo app in Python in a single file `todo.py`. \
+         Persist tasks as JSON in `todos.json` next to the script. Support two commands: \
+         `python3 todo.py add <text>` (append a task) and `python3 todo.py list` \
+         (print tasks numbered from 1). Then demonstrate it: add 'buy milk' and run list.",
+        "Add a `done <index>` command that marks the task at that 1-based index complete. \
+         In `list`, show completed tasks with a leading '[x] ' and pending tasks with '[ ] '. \
+         Demonstrate by marking task 1 done and listing.",
+        "Add a `rm <index>` command that removes the task at that 1-based index. \
+         Demonstrate by adding a second task, removing the first, and listing.",
+        "Make it robust: if the command is missing/unknown or the index is out of range or \
+         not a number, print a helpful usage/error message and exit with a non-zero status \
+         instead of crashing. Keep the existing commands working.",
+        "Write `test_todo.py` that exercises add, list, done, and rm by running todo.py as a \
+         subprocess against a temporary data file (set the data path via an env var like \
+         TODO_FILE, adding support for it in todo.py if needed). Assert the observable \
+         behavior. Run `python3 test_todo.py` and fix anything until it passes.",
+    ];
+
+    for (i, prompt) in turns.iter().enumerate() {
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        println!("  turn {} / {}", i + 1, turns.len());
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        println!("  👤 {prompt}");
+        run_turn(&runner, session_id, prompt).await?;
+        println!();
+    }
+    print_plan(&coding);
+
+    // ── Independent verification: the program the agent built must actually work.
+    println!("\n══ verification ══");
+    let files: Vec<String> = std::fs::read_dir(dir.path())?
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().to_string())
+        .collect();
+    println!("  files: {}", files.join(", "));
+
+    let loc: usize = ["todo.py", "test_todo.py"]
+        .iter()
+        .filter_map(|f| std::fs::read_to_string(dir.path().join(f)).ok())
+        .map(|c| c.lines().count())
+        .sum();
+    println!("  lines of code (todo.py + test_todo.py): {loc}");
+
+    let test =
+        std::process::Command::new("python3").arg("test_todo.py").current_dir(dir.path()).output();
+    match test {
+        Ok(o) if o.status.success() => {
+            println!("  ✅ python3 test_todo.py passed");
+            Ok(())
+        }
+        Ok(o) => {
+            println!(
+                "  ❌ python3 test_todo.py failed (exit {:?})\n{}",
+                o.status.code(),
+                String::from_utf8_lossy(&o.stderr).trim()
+            );
+            std::process::exit(1);
+        }
+        Err(e) => {
+            println!("  ❌ could not run tests: {e}");
+            std::process::exit(1);
+        }
+    }
 }
 
 /// Run a single task in a user-supplied directory.
