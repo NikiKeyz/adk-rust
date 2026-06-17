@@ -99,6 +99,14 @@ pub enum Commands {
         /// Maximum number of plan→act→verify iterations (budget).
         #[arg(long, default_value_t = 8)]
         max_iters: u32,
+
+        /// Path to the durable goal-state file (default: <dir>/.adk/goal.json).
+        #[arg(long)]
+        state: Option<String>,
+
+        /// Resume from a saved goal state instead of starting fresh.
+        #[arg(long)]
+        resume: bool,
     },
 
     /// Ultracode: fan out to parallel specialist reviewers and iterate.

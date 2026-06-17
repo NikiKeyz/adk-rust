@@ -66,17 +66,19 @@ async fn main() -> Result<()> {
             )
             .await
         }
-        Some(Commands::Goal { goal, until, dir, max_iters }) => {
-            run_goal(
-                cli.provider,
-                cli.model,
-                cli.api_key,
-                cli.thinking_budget,
+        Some(Commands::Goal { goal, until, dir, max_iters, state, resume }) => {
+            run_goal(GoalArgs {
+                provider: cli.provider,
+                model: cli.model,
+                api_key: cli.api_key,
+                thinking_budget: cli.thinking_budget,
                 dir,
                 goal,
                 until,
                 max_iters,
-            )
+                state,
+                resume,
+            })
             .await
         }
         Some(Commands::Ultracode { task, dir, max_rounds }) => {
@@ -160,20 +162,84 @@ fn run_check(dir: &str, command: &str) -> (Option<i32>, String) {
     }
 }
 
-/// Autonomous goal mode: loop plan → act → verify until `until` passes or budget.
-#[allow(clippy::too_many_arguments)]
-async fn run_goal(
-    cli_provider: Option<ModelProvider>,
-    cli_model: Option<String>,
-    cli_api_key: Option<String>,
+/// Arguments for [`run_goal`].
+struct GoalArgs {
+    provider: Option<ModelProvider>,
+    model: Option<String>,
+    api_key: Option<String>,
     thinking_budget: Option<u32>,
     dir: String,
     goal: String,
     until: String,
     max_iters: u32,
-) -> Result<()> {
-    let (model, model_id) = resolve_model(cli_provider, cli_model, cli_api_key, thinking_budget)?;
+    state: Option<String>,
+    resume: bool,
+}
+
+/// Durable goal state, checkpointed to disk after every iteration so a run can
+/// resume across restarts (mirrors Codex/Hermes persistent `/goal`).
+#[derive(serde::Serialize, serde::Deserialize, Default)]
+struct GoalState {
+    goal: String,
+    until: String,
+    iteration: u32,
+    /// "running" | "done" | "exhausted".
+    status: String,
+    last_output: String,
+}
+
+/// Autonomous goal mode: loop plan → act → verify until `until` passes or budget.
+async fn run_goal(args: GoalArgs) -> Result<()> {
+    let GoalArgs {
+        provider,
+        model,
+        api_key,
+        thinking_budget,
+        dir,
+        goal,
+        until,
+        max_iters,
+        state,
+        resume,
+    } = args;
+
+    let (model, model_id) = resolve_model(provider, model, api_key, thinking_budget)?;
     let coding = CodingAgent::builder().model(model).workspace(Workspace::new(&dir)).build()?;
+
+    let state_path = state.unwrap_or_else(|| format!("{dir}/.adk/goal.json"));
+
+    // Resume: if a saved state exists and is still running, continue from it.
+    let mut gs = if resume {
+        match std::fs::read_to_string(&state_path)
+            .ok()
+            .and_then(|s| serde_json::from_str::<GoalState>(&s).ok())
+        {
+            Some(saved) if saved.status == "done" => {
+                println!("goal already complete (per {state_path}); nothing to do.");
+                return Ok(());
+            }
+            Some(saved) => {
+                println!("resuming goal from {state_path} (iteration {})", saved.iteration);
+                saved
+            }
+            None => {
+                println!("no resumable state at {state_path}; starting fresh.");
+                GoalState {
+                    goal: goal.clone(),
+                    until: until.clone(),
+                    status: "running".into(),
+                    ..Default::default()
+                }
+            }
+        }
+    } else {
+        GoalState {
+            goal: goal.clone(),
+            until: until.clone(),
+            status: "running".into(),
+            ..Default::default()
+        }
+    };
 
     // One runner/session: the agent remembers prior attempts across iterations.
     let sessions: Arc<dyn SessionService> = Arc::new(InMemorySessionService::new());
@@ -193,10 +259,10 @@ async fn run_goal(
 
     println!("goal mode ({model_id}) on {dir}");
     println!("goal:  {goal}");
-    println!("until: {until}  (budget: {max_iters} iterations)\n");
+    println!("until: {until}  (budget: {max_iters} iterations, state: {state_path})\n");
 
-    let mut last_output = String::new();
-    for iter in 1..=max_iters {
+    let start = gs.iteration + 1;
+    for iter in start..=max_iters {
         println!("━━ iteration {iter}/{max_iters} ━━");
         let prompt = if iter == 1 {
             format!(
@@ -206,21 +272,44 @@ async fn run_goal(
         } else {
             format!(
                 "The success check `{until}` is not passing yet. Its latest output was:\n\
-                 ---\n{last_output}\n---\nDiagnose and fix this, continuing toward the goal: {goal}"
+                 ---\n{}\n---\nDiagnose and fix this, continuing toward the goal: {goal}",
+                gs.last_output
             )
         };
         stream_turn(&runner, "goal", &prompt).await?;
 
         let (code, output) = run_check(&dir, &until);
-        last_output = first_lines(&output, 40);
+        gs.iteration = iter;
+        gs.last_output = first_lines(&output, 40);
+        gs.status = if code == Some(0) { "done".into() } else { "running".into() };
+        save_goal_state(&state_path, &gs); // checkpoint after every iteration
+
         if code == Some(0) {
-            println!("\n✅ goal met after {iter} iteration(s): `{until}` passed.");
+            println!(
+                "\n✅ goal met after {iter} iteration(s): `{until}` passed. (state: {state_path})"
+            );
             return Ok(());
         }
         println!("  ✗ check `{until}` exited {code:?}; iterating.\n");
     }
-    println!("\n⚠️  budget exhausted after {max_iters} iteration(s); `{until}` still failing.");
+    gs.status = "exhausted".into();
+    save_goal_state(&state_path, &gs);
+    println!("\n⚠️  budget exhausted; `{until}` still failing. Resume later with --resume.");
     std::process::exit(1);
+}
+
+/// Atomically checkpoint goal state to disk (write temp + rename).
+fn save_goal_state(path: &str, state: &GoalState) {
+    let p = std::path::Path::new(path);
+    if let Some(parent) = p.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(json) = serde_json::to_string_pretty(state) {
+        let tmp = format!("{path}.tmp");
+        if std::fs::write(&tmp, json).is_ok() {
+            let _ = std::fs::rename(&tmp, path);
+        }
+    }
 }
 
 /// First `n` lines of `s` (for compact failure feedback).
